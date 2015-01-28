@@ -19,7 +19,7 @@ class SqlRowWriter(val table: TableDef, val columnNames: Seq[String]) extends Ro
 object SqlRowWriter {
 
   object Factory extends RowWriterFactory[Row] {
-    override def rowWriter(table: TableDef, columnNames: Seq[String]) =
+    override def rowWriter(table: TableDef, columnNames: Seq[String], checkColumns: CheckSetting) =
       new SqlRowWriter(table, columnNames)
   }
 

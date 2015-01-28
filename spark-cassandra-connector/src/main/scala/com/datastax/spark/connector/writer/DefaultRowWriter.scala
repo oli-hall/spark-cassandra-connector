@@ -9,9 +9,15 @@ import com.datastax.spark.connector.types.TypeConverter
 import scala.collection.{Map, Seq}
 import scala.collection.JavaConversions._
 
+trait CheckSetting
+object CheckLevel{
+  case object CheckAll extends CheckSetting
+  case object CheckPartitionOnly extends CheckSetting
+}
+
 /** A `RowWriter` suitable for saving objects mappable by a [[com.datastax.spark.connector.mapper.ColumnMapper ColumnMapper]].
   * Can save case class objects, java beans and tuples. */
-class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[String])
+class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[String], checkColumns:CheckSetting)
   extends RowWriter[T] {
 
   // do not save reference to ColumnMapper in a field, because it is non Serializable
@@ -52,6 +58,15 @@ class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[S
     }
   }
 
+  private def checkMissingPartitionKeyColumns(columnNames: Seq[String]){
+    val partitionKeyColumnNames = table.partitionKey.map(_.columnName)
+    val missingPartitionKeyColumns = partitionKeyColumnNames.toSet -- columnNames
+    if (missingPartitionKeyColumns.nonEmpty)
+      throw new IllegalArgumentException(
+        s"Some primary key columns are missing in RDD or have not been selected: ${missingPartitionKeyColumns.mkString(", ")}")
+
+  }
+
   val (propertyNames, columnNames) = {
     val propertyToColumnName = columnMap.getters.mapValues(columnNameByRef).toSeq
     val selectedPropertyColumnPairs =
@@ -60,9 +75,14 @@ class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[S
     selectedPropertyColumnPairs.unzip
   }
 
-  checkMissingProperties(propertyNames)
-  checkMissingColumns(columnNames)
-  checkMissingPrimaryKeyColumns(columnNames)
+  checkColumns match {
+    case CheckLevel.CheckAll => {
+      checkMissingProperties(propertyNames)
+      checkMissingColumns(columnNames)
+      checkMissingPrimaryKeyColumns(columnNames)
+    }
+    case CheckLevel.CheckPartitionOnly => checkMissingPartitionKeyColumns(columnNames)
+  }
 
   private val columnNameToPropertyName = (columnNames zip propertyNames).toMap
   private val extractor = new PropertyExtractor(cls, propertyNames)
@@ -79,9 +99,9 @@ class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[S
 object DefaultRowWriter {
 
   def factory[T : ColumnMapper] = new RowWriterFactory[T] {
-    override def rowWriter(tableDef: TableDef, columnNames: Seq[String]) = {
-      new DefaultRowWriter[T](tableDef, columnNames)
+    override def rowWriter(tableDef: TableDef, columnNames: Seq[String], checkLevel: CheckSetting):RowWriter[T] = {
+      new DefaultRowWriter[T](tableDef, columnNames, checkLevel)
     }
   }
-
 }
+

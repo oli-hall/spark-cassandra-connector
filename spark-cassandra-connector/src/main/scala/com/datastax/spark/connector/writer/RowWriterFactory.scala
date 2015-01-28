@@ -13,7 +13,7 @@ trait RowWriterFactory[T] {
   /** Creates a new `RowWriter` instance.
     * @param table target table the user wants to write into
     * @param columnNames columns selected by the user; the user might wish to write only a subset of columns */
-  def rowWriter(table: TableDef, columnNames: Seq[String]): RowWriter[T]
+  def rowWriter(table: TableDef, columnNames: Seq[String], checkColumns: CheckSetting): RowWriter[T]
 }
 
 /** Provides a low-priority implicit `RowWriterFactory` able to write objects of any class for which

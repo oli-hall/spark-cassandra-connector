@@ -22,7 +22,7 @@ class RoutingKeyGeneratorSpec extends FlatSpec with Matchers with BeforeAndAfter
 
   "RoutingKeyGenerator" should "generate proper routing keys when there is one partition key column" in {
     val schema = Schema.fromCassandra(conn, Some("routing_key_gen_test"), Some("one_key"))
-    val rowWriter = RowWriterFactory.defaultRowWriterFactory[(Int, String)].rowWriter(schema.tables.head, Seq("id", "value"))
+    val rowWriter = RowWriterFactory.defaultRowWriterFactory[(Int, String)].rowWriter(schema.tables.head, Seq("id", "value"), CheckLevel.CheckAll)
     val rkg = new RoutingKeyGenerator(schema.tables.head, Seq("id", "value"))
 
     conn.withSessionDo { session =>
@@ -43,7 +43,7 @@ class RoutingKeyGeneratorSpec extends FlatSpec with Matchers with BeforeAndAfter
 
   "RoutingKeyGenerator" should "generate proper routing keys when there are more partition key columns" in {
     val schema = Schema.fromCassandra(conn, Some("routing_key_gen_test"), Some("two_keys"))
-    val rowWriter = RowWriterFactory.defaultRowWriterFactory[(Int, String, String)].rowWriter(schema.tables.head, Seq("id", "id2", "value"))
+    val rowWriter = RowWriterFactory.defaultRowWriterFactory[(Int, String, String)].rowWriter(schema.tables.head, Seq("id", "id2", "value"), CheckLevel.CheckAll)
     val rkg = new RoutingKeyGenerator(schema.tables.head, Seq("id", "id2", "value"))
 
     conn.withSessionDo { session =>

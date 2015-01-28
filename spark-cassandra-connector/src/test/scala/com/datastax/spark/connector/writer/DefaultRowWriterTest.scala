@@ -9,7 +9,7 @@ class DefaultRowWriterTest {
   @Test
   def testSerializability() {
     val table = TableDef("test", "table", Nil, Nil, Nil)
-    val rowWriter = new DefaultRowWriter[DefaultRowWriterTest](table, Nil)
+    val rowWriter = new DefaultRowWriter[DefaultRowWriterTest](table, Nil, CheckLevel.CheckAll)
     SerializationUtils.roundtrip(rowWriter)
   }
 
