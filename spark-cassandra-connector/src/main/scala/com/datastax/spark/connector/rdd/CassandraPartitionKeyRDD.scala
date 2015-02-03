@@ -27,8 +27,13 @@ class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
                                        @transient rwf: RowWriterFactory[O], @transient rrf: RowReaderFactory[N])
   extends CassandraRDD[N](prev.sparkContext, connector, keyspaceName, tableName, columns, where, readConf, prev.dependencies) {
 
-  private val converter = ReplicaMapper[O](connector, keyspaceName, tableName)
+  //Make sure copy operations make new CPKRDDs and not CRDDs
+  override def copy(columnNames: ColumnSelector = columnNames,
+                   where: CqlWhereClause = where,
+                   readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraPartitionKeyRDD[O,N] =
+    new CassandraPartitionKeyRDD[O,N](prev, keyspaceName, tableName, connector, columnNames, where, readConf)
 
+  private val converter = ReplicaMapper[O](connector, keyspaceName, tableName)
 
   //We need to make sure we get selectedColumnNames before serialization so that our RowReader is
   //built
@@ -49,6 +54,15 @@ class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
     )
   }
 
+
+  /**
+   * When computing a CassandraPartitionKeyRDD the data is selected via single CQL statements
+   * from the specified C* Keyspace and Table. This will be preformed on whatever data is
+   * avaliable in the previous RDD in the chain.
+   * @param split
+   * @param context
+   * @return
+   */
   override def compute(split: Partition, context: TaskContext): Iterator[N] = {
     connector.withSessionDo { session =>
       logDebug(s"Query::: $singleKeyCqlQuery")
@@ -58,19 +72,23 @@ class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
     }
 
   def fetchIterator(session:Session, stmt: PreparedStatement, lastIt:Iterator[O]): Iterator[N] = {
-    converter.bindStatements(lastIt, stmt).flatMap { request =>
+    converter.bindStatements(lastIt, stmt).flatMap { request => //flatMap Because we may get multiple results for a single query
       implicit val pv = protocolVersion(session)
       val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
       val rs = session.execute(request)
       val iterator = new PrefetchingResultSetIterator(rs, fetchSize)
       val result = iterator.map(rowTransformer.read(_, columnNamesArray))
-      logDebug(s"Row iterator for row ${request} obtained successfully.")
       result
     }
   }
 
   @transient override val partitioner: Option[Partitioner] = prev.partitioner
 
+  /**
+   * If this RDD was partitioned using the ReplicaPartitioner then that means we can get preffered locations
+   * for each partition, otherwise we will rely on the previous RDD's partitioning.
+   * @return
+   */
   override def getPartitions: Array[Partition] = {
     partitioner match {
       case Some(rp:ReplicaPartitioner) => prev.partitions.map(partition => rp.getEndpointParititon(partition))
@@ -81,14 +99,15 @@ class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
   override def getPreferredLocations(split: Partition): Seq[String] = {
     split match {
       case epp: EndpointPartition =>
-        epp.endpoint.map(_.getHostAddress).toSeq
-      case other: Partition => Seq()
+        epp.endpoint.map(_.getHostAddress).toSeq // We were previously partitioned using the ReplicaPartitioner
+      case other: Partition => prev.preferredLocations(split) //Fall back to last RDD's preferred spot
     }
   }
 
   /**
    * Return a new CassandraPartitionKeyRDD that is made by taking the previous RDD and re partitioning it
-   * with the Replica Partitioner
+   * with the Replica Partitioner. This will discard the current RDD in the execution chain and have it replaced
+   * with a shuffle and a new CassandraPartitionKeyRDD depending on that shuffle.
    * @param partitionsPerReplicaSet
    * @param rwf
    * @return

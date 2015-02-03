@@ -78,7 +78,7 @@ class CassandraRDD[R] private[connector] (
   private def splitSize = readConf.splitSize
   protected def consistencyLevel = readConf.consistencyLevel
 
-  private def copy(columnNames: ColumnSelector = columnNames,
+  protected def copy(columnNames: ColumnSelector = columnNames,
                    where: CqlWhereClause = where,
                    readConf: ReadConf = readConf,
                    empty: Boolean = empty,

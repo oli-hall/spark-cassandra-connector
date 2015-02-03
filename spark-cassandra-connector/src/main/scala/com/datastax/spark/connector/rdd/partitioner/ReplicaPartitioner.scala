@@ -11,7 +11,8 @@ case class EndpointPartition(index: Int, endpoint: Set[InetAddress]) extends Par
 class ReplicaPartitioner(partitionsPerReplicaSet: Int, connector:CassandraConnector) extends Partitioner {
     val hosts = connector.hosts
     val hostMap = hosts.zipWithIndex.toMap
-    //TODO We Need JAVA-312 to get sets of replicas instead of single endpoints
+    /*TODO We Need JAVA-312 to get sets of replicas instead of single endpoints. Once we have that we'll be able to
+    build a map of Set[ip,ip,...] => Index before looking at our data. */
     val indexMap = (0 to partitionsPerReplicaSet).flatMap(offset => hostMap.map { case (hosts, index) => (index + offset, Set(hosts))}).toMap
     val numHosts = hosts.size
     val rand = new java.util.Random()

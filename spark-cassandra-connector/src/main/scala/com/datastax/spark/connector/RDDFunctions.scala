@@ -96,28 +96,28 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
   /** Applies a function to each item, and groups consecutive items having the same value together.
     * Contrary to `groupBy`, items from the same group must be already next to each other in the
     * original collection. Works locally on each partition, so items from different
-    * partitions will never be placed in the same group. */
+    * partitions will never be placed in the same group.*/
   def spanBy[U](f: (T) => U): RDD[(U, Iterable[T])] =
     new SpannedRDD[U, T](rdd, f)
 
   /**
    * Uses the data from `RDD` to get data from a Cassandra table. This function is slightly more liberal than
-   * saveToCassandra as you are not required to specify the entire Primary key. You must specify
+   * saveToCassandra as you are not required to specify the entire Primary Key. You must specify
    * the entire partition key but clustering columns are optional. If clustering columns are included they must be in
    * an order valid for Cassandra.
    *
-   * The flag repartition (default: true) tells spark whether or not it should repartition the data so that the
-   * queries are preformed on a coordinator for the data they request. When preforming inner-joins be sure
-   * to set this to false so no data shuffling occurs.
+   * The flag repartition (default: true) tells Spark whether or not it should shuffle and repartition the data
+   * so that the queries are preformed on a coordinator for the data they request. When preforming inner-joins between
+   * Cassandra tables this is not neccessary so set this to false so no data shuffling occurs.
    */
-  def fetchFromCassandra[R](keyspaceName: String, tableName: String, repartition: Boolean = true)
+  def fetchFromCassandra[R](keyspaceName: String, tableName: String, repartition: Boolean = true, partitionsPerReplicaSet:Int = 10)
                            (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                             newType: ClassTag[R], rrf: RowReaderFactory[R], ev: ValidRDDType[R],
                             currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraRDD[R] = {
     val cassRdd = new CassandraPartitionKeyRDD[T, R](rdd, keyspaceName, tableName, connector)
     if (repartition) {
-      // Todo See if we can determine whether or not we should repartition (prev.class == CassandraRDD and T matches keys of Keyspace,Table)
-      cassRdd.partitionByReplica()
+      // Todo See if we can automatically determine whether or not we should repartition (prev.class == CassandraRDD and T matches keys of Keyspace,Table)
+      cassRdd.partitionByReplica(partitionsPerReplicaSet)
     } else {
       cassRdd
     }
