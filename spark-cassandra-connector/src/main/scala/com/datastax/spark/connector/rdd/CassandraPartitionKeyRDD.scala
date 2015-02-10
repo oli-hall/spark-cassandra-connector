@@ -13,7 +13,7 @@ import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.writer._
 import com.datastax.spark.connector.rdd.reader._
-import com.datastax.spark.connector.rdd.partitioner.{EndpointPartition, ReplicaPartitioner}
+import com.datastax.spark.connector.rdd.partitioner.{ReplicaPartition, ReplicaPartitioner}
 
 // O[ld] Is the type of the RDD we are Mapping From, N[ew] the type were are mapping too Old
 class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
@@ -98,8 +98,8 @@ class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     split match {
-      case epp: EndpointPartition =>
-        epp.endpoint.map(_.getHostAddress).toSeq // We were previously partitioned using the ReplicaPartitioner
+      case epp: ReplicaPartition =>
+        epp.endpoints.map(_.getHostAddress).toSeq // We were previously partitioned using the ReplicaPartitioner
       case other: Partition => prev.preferredLocations(split) //Fall back to last RDD's preferred spot
     }
   }

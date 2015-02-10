@@ -6,29 +6,45 @@ import com.datastax.spark.connector.cql.CassandraConnector
 import org.apache.spark.{Partition, Partitioner}
 
 
-case class EndpointPartition(index: Int, endpoint: Set[InetAddress]) extends Partition
+case class ReplicaPartition(index: Int, endpoints: Set[InetAddress]) extends EndpointPartition
 
-class ReplicaPartitioner(partitionsPerReplicaSet: Int, connector:CassandraConnector) extends Partitioner {
-    val hosts = connector.hosts
-    val hostMap = hosts.zipWithIndex.toMap
-    /*TODO We Need JAVA-312 to get sets of replicas instead of single endpoints. Once we have that we'll be able to
-    build a map of Set[ip,ip,...] => Index before looking at our data. */
-    val indexMap = (0 to partitionsPerReplicaSet).flatMap(offset => hostMap.map { case (hosts, index) => (index + offset, Set(hosts))}).toMap
-    val numHosts = hosts.size
-    val rand = new java.util.Random()
+/**
+ * The replica partitioner will work on an RDD which is keyed on sets of InetAdresses representing Cassandra
+ * Hosts . It will group keys which share a common IP address into partitionsPerReplicaSet Partitions.
+ * @param partitionsPerReplicaSet The number of Spark Partitions to make Per Unique Endpoint
+ * @param connector
+ */
+class ReplicaPartitioner(partitionsPerReplicaSet: Int, connector: CassandraConnector) extends Partitioner {
+  /* TODO We Need JAVA-312 to get sets of replicas instead of single endpoints. Once we have that we'll be able to
+  build a map of Set[ip,ip,...] => Index before looking at our data and give the all options for the preferred location
+   for a partition*/
+  val hosts = connector.hosts
+  val numHosts = hosts.size
+  val partitionIndexes = (0 until partitionsPerReplicaSet * numHosts).grouped(partitionsPerReplicaSet).toList
+  val hostMap = hosts zip partitionIndexes toMap
+  // Ip1 -> (0,1,2,..), Ip2 -> (11,12,13...)
+  val indexMap = hostMap flatMap { case (ip, partitions) => partitions.map(partition => (partition, ip))}
+  // 0->IP1, 1-> IP1, ...
+  val rand = new java.util.Random()
 
-    override def getPartition(key: Any): Int = {
-      val replicaSet = key.asInstanceOf[Set[InetAddress]]
-      val offset = rand.nextInt(partitionsPerReplicaSet)
-      hostMap.getOrElse(replicaSet.last, rand.nextInt(numHosts)) + offset
-    }
-
-    override def numPartitions: Int = partitionsPerReplicaSet * numHosts
-
-    def getEndpointParititon(partition: Partition): EndpointPartition = {
-      val endpoints = indexMap.getOrElse(partition.index, throw new RuntimeException(s"${indexMap} : Can't get an endpoint for Partition $partition.index"))
-      new EndpointPartition(index = partition.index, endpoint = endpoints)
-    }
-
+  /**
+   * Given a set of endpoints, pick a random endpoint, and then a random partition owned by that endpoint
+   * @param key A Set[InetAddress] of replicas for this Cassandra Partition
+   * @return
+   */
+  override def getPartition(key: Any): Int = {
+    val replicaSet = key.asInstanceOf[Set[InetAddress]].toVector
+    val endpoint = replicaSet(rand.nextInt(replicaSet.size))
+    hostMap(endpoint)(rand.nextInt(partitionsPerReplicaSet))
   }
+
+  override def numPartitions: Int = partitionsPerReplicaSet * numHosts
+
+  def getEndpointParititon(partition: Partition): ReplicaPartition = {
+    val endpoints = indexMap.getOrElse(partition.index,
+      throw new RuntimeException(s"${indexMap} : Can't get an endpoint for Partition $partition.index"))
+    new ReplicaPartition(index = partition.index, endpoints = Set(endpoints))
+  }
+
+}
 
