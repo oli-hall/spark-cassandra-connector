@@ -37,7 +37,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   }
 
   def checkArrayCassandraRow(result: Array[CassandraRow]) = for (key <- keys) {
-    result.length should be (keys.length)
+    result.length should be(keys.length)
     val sorted_result = result.sortBy(_.getInt(0))
     sorted_result(key).getInt("key") should be(key)
     sorted_result(key).getLong("group") should be(key * 100)
@@ -45,7 +45,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   }
 
   def checkArrayTuple(result: Array[(Int, Long, String)]) = for (key <- keys) {
-    result.length should be (keys.length)
+    result.length should be(keys.length)
     val sorted_result = result.sortBy(_._1)
     sorted_result(key)._1 should be(key)
     sorted_result(key)._2 should be(key * 100)
@@ -53,7 +53,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   }
 
   def checkArrayFullRow(result: Array[FullRow]) = for (key <- keys) {
-    result.length should be (keys.length)
+    result.length should be(keys.length)
     val sorted_result = result.sortBy(_.key)
     sorted_result(key).key should be(key)
     sorted_result(key).group should be(key * 100)
@@ -125,7 +125,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).fetchFromCassandra[(Int,Long,String)](keyspace, tableName)
+    val someCass = sc.cassandraTable(keyspace, otherTable).fetchFromCassandra[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
     checkArrayTuple(result)
   }
@@ -149,9 +149,16 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     results should be(keys.toArray)
   }
 
-  "A fetched CassandraRDD " should " support where clauses" in {
+  it should " support where clauses" in {
     val someCass = sc.parallelize(keys).map(x => new KVRow(x)).fetchFromCassandra(keyspace, tableName).where("group >= 500")
     val results = someCass.collect
     results should have length (keys.filter(_ >= 5).length)
   }
+
+  it should " throw an exception if you try to filter on a column in the Partition key" in {
+    intercept[IllegalArgumentException] {
+      val someCass = sc.parallelize(keys).map(x => new KVRow(x)).fetchFromCassandra(keyspace, tableName).where("key = 200")
+    }
+  }
+
 }

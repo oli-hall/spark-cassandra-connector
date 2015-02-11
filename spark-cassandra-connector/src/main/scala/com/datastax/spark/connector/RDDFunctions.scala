@@ -96,7 +96,7 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
   /** Applies a function to each item, and groups consecutive items having the same value together.
     * Contrary to `groupBy`, items from the same group must be already next to each other in the
     * original collection. Works locally on each partition, so items from different
-    * partitions will never be placed in the same group.*/
+    * partitions will never be placed in the same group. */
   def spanBy[U](f: (T) => U): RDD[(U, Iterable[T])] =
     new SpannedRDD[U, T](rdd, f)
 
@@ -110,11 +110,11 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
    * so that the queries are preformed on a coordinator for the data they request. When preforming inner-joins between
    * Cassandra tables this is not neccessary so set this to false so no data shuffling occurs.
    */
-  def fetchFromCassandra[R](keyspaceName: String, tableName: String, repartition: Boolean = true, partitionsPerReplicaSet:Int = 10)
+  def fetchFromCassandra[R](keyspaceName: String, tableName: String, repartition: Boolean = true, partitionsPerReplicaSet: Int = 10)
                            (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                             newType: ClassTag[R], rrf: RowReaderFactory[R], ev: ValidRDDType[R],
                             currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraRDD[R] = {
-    val cassRdd = new CassandraPartitionKeyRDD[T, R](rdd, keyspaceName, tableName, connector)
+    val cassRdd = new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector)
     if (repartition) {
       // Todo See if we can automatically determine whether or not we should repartition (prev.class == CassandraRDD and T matches keys of Keyspace,Table)
       cassRdd.partitionByReplica(partitionsPerReplicaSet)
@@ -122,6 +122,5 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
       cassRdd
     }
   }
-
 
 }

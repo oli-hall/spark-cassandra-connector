@@ -7,7 +7,7 @@ import org.apache.spark.Partition
 /** Stores a CQL `WHERE` predicate matching a range of tokens. */
 case class CqlTokenRange(cql: String, values: Any*)
 
-trait EndpointPartition extends Partition{
+trait EndpointPartition extends Partition {
   def endpoints: Iterable[InetAddress]
 }
 

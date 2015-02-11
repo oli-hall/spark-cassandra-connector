@@ -2,21 +2,20 @@ package com.datastax.spark.connector.rdd
 
 import java.net.InetAddress
 
-
 import com.datastax.driver.core.{PreparedStatement, Session}
-import org.apache.spark.{Partitioner, TaskContext, Partition}
-import org.apache.spark.rdd.RDD
+import com.datastax.spark.connector._
+import com.datastax.spark.connector.cql._
+import com.datastax.spark.connector.rdd.partitioner.{ReplicaPartition, ReplicaPartitioner}
+import com.datastax.spark.connector.rdd.reader._
+import com.datastax.spark.connector.writer._
 import org.apache.spark.SparkContext._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{Partition, Partitioner, TaskContext}
+
 import scala.reflect.ClassTag
 
-import com.datastax.spark.connector.cql._
-import com.datastax.spark.connector._
-import com.datastax.spark.connector.writer._
-import com.datastax.spark.connector.rdd.reader._
-import com.datastax.spark.connector.rdd.partitioner.{ReplicaPartition, ReplicaPartitioner}
-
 // O[ld] Is the type of the RDD we are Mapping From, N[ew] the type were are mapping too Old
-class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
+class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
                                       keyspaceName: String,
                                       tableName: String,
                                       connector: CassandraConnector,
@@ -30,22 +29,26 @@ class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
   //Make sure copy operations make new CPKRDDs and not CRDDs
   override def copy(columnNames: ColumnSelector = columnNames,
                    where: CqlWhereClause = where,
-                   readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraPartitionKeyRDD[O,N] =
-    new CassandraPartitionKeyRDD[O,N](prev, keyspaceName, tableName, connector, columnNames, where, readConf)
+                   readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraJoinRDD[O, N] =
+    new CassandraJoinRDD[O, N](prev, keyspaceName, tableName, connector, columnNames, where, readConf)
 
   private val converter = ReplicaMapper[O](connector, keyspaceName, tableName)
 
   //We need to make sure we get selectedColumnNames before serialization so that our RowReader is
   //built
   private val singleKeyCqlQuery: (String) = {
+    require(tableDef.partitionKey.map(_.columnName).exists(
+      partitionKey => where.predicates.exists(_.contains(partitionKey))) == false,
+      "Partition keys are not allowed in the .where() clause of a Cassandra Join")
     logDebug("Generating Single Key Query Prepared Statement String")
     val columns = selectedColumnNames.map(_.cql).mkString(", ")
-    val partitionWhere = tableDef.partitionKey.map(_.columnName).map(name => s"$name = :$name")
+    val partitionWhere = tableDef.partitionKey.map(_.columnName).map(name => s"${quote(name)} = :$name")
     val filter = (where.predicates ++ partitionWhere).mkString(" AND ")
     val quotedKeyspaceName = quote(keyspaceName)
     val quotedTableName = quote(tableName)
-    logDebug(s"SELECT $columns FROM $quotedKeyspaceName.$quotedTableName WHERE $filter")
-    (s"SELECT $columns FROM $quotedKeyspaceName.$quotedTableName WHERE $filter")
+    val query = s"SELECT $columns FROM $quotedKeyspaceName.$quotedTableName WHERE $filter"
+    logDebug(query)
+    query
   }
 
   private def keyByReplica(implicit rwf: RowWriterFactory[O]): RDD[(Set[InetAddress], O)] = {
@@ -113,11 +116,11 @@ class CassandraPartitionKeyRDD[O, N] private[connector] (prev: RDD[O],
    * @return
    */
   def partitionByReplica(partitionsPerReplicaSet: Int = 10)
-                                (implicit rwf: RowWriterFactory[O]): CassandraPartitionKeyRDD[O, N] = {
+                        (implicit rwf: RowWriterFactory[O]): CassandraJoinRDD[O, N] = {
     val part = new ReplicaPartitioner(partitionsPerReplicaSet,connector)
     val output = this.keyByReplica.partitionBy(part).map(_._2)
     logDebug(s"PartitionByReplica generated $output of type ${output.getClass.toString} ")
-    val result = new CassandraPartitionKeyRDD[O, N](prev = output, keyspaceName = keyspaceName, tableName = tableName, connector = connector)
+    val result = new CassandraJoinRDD[O, N](prev = output, keyspaceName = keyspaceName, tableName = tableName, connector = connector)
     result
   }
 
