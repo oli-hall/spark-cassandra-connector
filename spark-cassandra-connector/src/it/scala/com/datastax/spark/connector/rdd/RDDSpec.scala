@@ -61,103 +61,103 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   }
 
 
-  "A Tuple RDD specifying partition keys" should "be retreivable from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(Tuple1(_)).fetchFromCassandra(keyspace, tableName)
+  "A Tuple RDD specifying partition keys" should "be joinable with Cassandra" in {
+    val someCass = sc.parallelize(keys).map(Tuple1(_)).joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
     checkArrayCassandraRow(result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(Tuple1(_)).fetchFromCassandra[(Int, Long, String)](keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(Tuple1(_)).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
     checkArrayTuple(result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.parallelize(keys).map(Tuple1(_)).fetchFromCassandra[FullRow](keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(Tuple1(_)).joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
     checkArrayFullRow(result)
   }
 
 
   "A case-class RDD specifying partition keys" should "be retrievable from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).fetchFromCassandra(keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
     checkArrayCassandraRow(result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).fetchFromCassandra[(Int, Long, String)](keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
     checkArrayTuple(result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).fetchFromCassandra[FullRow](keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
     checkArrayFullRow(result)
   }
 
 
   "A Tuple RDD specifying partitioning keys and clustering keys " should "be retrievable from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).fetchFromCassandra(keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
     checkArrayCassandraRow(result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).fetchFromCassandra[(Int, Long, String)](keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
     checkArrayTuple(result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).fetchFromCassandra[FullRow](keyspace, tableName)
+    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
     checkArrayFullRow(result)
   }
 
 
-  "A CassandraRDD " should "be retreivable from Cassandra" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).fetchFromCassandra(keyspace, tableName)
+  "A CassandraRDD " should "be joinable with Cassandra" in {
+    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
     checkArrayCassandraRow(result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).fetchFromCassandra[(Int, Long, String)](keyspace, tableName)
+    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
     checkArrayTuple(result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).fetchFromCassandra[FullRow](keyspace, tableName)
+    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
     checkArrayFullRow(result)
   }
 
   it should " be retreivable without repartitioning" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).fetchFromCassandra(keyspace, tableName, false)
+    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable(keyspace, tableName)
     someCass.toDebugString should not contain "ShuffledRDD"
     val result = someCass.collect
     checkArrayCassandraRow(result)
   }
 
   "A fetched CassandraRDD " should " support select clauses " in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).fetchFromCassandra(keyspace, tableName).select("value")
+    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable(keyspace, tableName).select("value")
     val results = someCass.collect.map(_.getInt("value")).sorted
     results should be(keys.toArray)
   }
 
   it should " support where clauses" in {
-    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).fetchFromCassandra(keyspace, tableName).where("group >= 500")
+    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable(keyspace, tableName).where("group >= 500")
     val results = someCass.collect
     results should have length (keys.filter(_ >= 5).length)
   }
 
   it should " throw an exception if you try to filter on a column in the Partition key" in {
     intercept[IllegalArgumentException] {
-      val someCass = sc.parallelize(keys).map(x => new KVRow(x)).fetchFromCassandra(keyspace, tableName).where("key = 200")
+      val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable(keyspace, tableName).where("key = 200")
     }
   }
 

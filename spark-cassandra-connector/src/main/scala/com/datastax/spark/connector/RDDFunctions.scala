@@ -1,13 +1,17 @@
 package com.datastax.spark.connector
 
 
-import com.datastax.spark.connector.cql.{TableDef, CassandraConnector}
-import com.datastax.spark.connector.mapper.ColumnMapper
-import com.datastax.spark.connector.rdd.SpannedRDD
+import java.net.InetAddress
+
+import com.datastax.spark.connector.cql._
+import com.datastax.spark.connector.rdd.partitioner.ReplicaPartitioner
+import com.datastax.spark.connector.rdd.reader._
+import com.datastax.spark.connector.rdd.{CassandraJoinRDD, CassandraRDD, SpannedRDD, ValidRDDType}
 import com.datastax.spark.connector.writer._
 import com.datastax.spark.connector.writer.ReplicaMapper
 
 import org.apache.spark.SparkContext
+import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.rdd.{CassandraPartitionKeyRDD, CassandraRDD, ValidRDDType, SpannedRDD}
@@ -105,22 +109,36 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
    * saveToCassandra as you are not required to specify the entire Primary Key. You must specify
    * the entire partition key but clustering columns are optional. If clustering columns are included they must be in
    * an order valid for Cassandra.
-   *
-   * The flag repartition (default: true) tells Spark whether or not it should shuffle and repartition the data
-   * so that the queries are preformed on a coordinator for the data they request. When preforming inner-joins between
-   * Cassandra tables this is not neccessary so set this to false so no data shuffling occurs.
    */
-  def fetchFromCassandra[R](keyspaceName: String, tableName: String, repartition: Boolean = true, partitionsPerReplicaSet: Int = 10)
+  def joinWithCassandraTable[R](keyspaceName: String, tableName: String)
                            (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                             newType: ClassTag[R], rrf: RowReaderFactory[R], ev: ValidRDDType[R],
                             currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraRDD[R] = {
-    val cassRdd = new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector)
-    if (repartition) {
-      // Todo See if we can automatically determine whether or not we should repartition (prev.class == CassandraRDD and T matches keys of Keyspace,Table)
-      cassRdd.partitionByReplica(partitionsPerReplicaSet)
-    } else {
-      cassRdd
-    }
+    new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector)
   }
+
+
+  /**
+   * Return a new ShuffledRDD that is made by taking the current RDD and repartitioning it
+   * with the Replica Partitioner.
+   **/
+  def repartitionByCassandraReplica(keyspaceName: String, tableName: String, partitionsPerReplicaSet: Int = 10)
+                                   (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
+                                    currentType: ClassTag[T], rwf: RowWriterFactory[T]) = {
+
+    val part = new ReplicaPartitioner(partitionsPerReplicaSet, connector)
+    val output = rdd.keyByCassandraReplica(keyspaceName, tableName).partitionBy(part).map(_._2)
+    output
+  }
+
+  def keyByCassandraReplica(keyspaceName: String, tableName: String)
+                           (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
+                            currentType: ClassTag[T], rwf: RowWriterFactory[T]): RDD[(Set[InetAddress], T)] = {
+    val converter = ReplicaMapper[T](connector, keyspaceName, tableName)
+    rdd.mapPartitions(primaryKey =>
+      converter.keyByReplicas(primaryKey)
+    )
+  }
+
 
 }

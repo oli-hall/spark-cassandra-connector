@@ -1,14 +1,11 @@
 package com.datastax.spark.connector.rdd
 
-import java.net.InetAddress
-
 import com.datastax.driver.core.{PreparedStatement, Session}
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.rdd.partitioner.{ReplicaPartition, ReplicaPartitioner}
 import com.datastax.spark.connector.rdd.reader._
 import com.datastax.spark.connector.writer._
-import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Partition, Partitioner, TaskContext}
 
@@ -26,7 +23,7 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
                                        @transient rwf: RowWriterFactory[O], @transient rrf: RowReaderFactory[N])
   extends CassandraRDD[N](prev.sparkContext, connector, keyspaceName, tableName, columns, where, readConf, prev.dependencies) {
 
-  //Make sure copy operations make new CPKRDDs and not CRDDs
+  //Make sure copy operations make new CJRDDs and not CRDDs
   override def copy(columnNames: ColumnSelector = columnNames,
                    where: CqlWhereClause = where,
                    readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraJoinRDD[O, N] =
@@ -51,13 +48,6 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
     query
   }
 
-  private def keyByReplica(implicit rwf: RowWriterFactory[O]): RDD[(Set[InetAddress], O)] = {
-    prev.mapPartitions( primaryKey =>
-      converter.keyByReplicas(primaryKey)
-    )
-  }
-
-
   /**
    * When computing a CassandraPartitionKeyRDD the data is selected via single CQL statements
    * from the specified C* Keyspace and Table. This will be preformed on whatever data is
@@ -75,9 +65,9 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
     }
 
   def fetchIterator(session:Session, stmt: PreparedStatement, lastIt:Iterator[O]): Iterator[N] = {
+    val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
     converter.bindStatements(lastIt, stmt).flatMap { request => //flatMap Because we may get multiple results for a single query
       implicit val pv = protocolVersion(session)
-      val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
       val rs = session.execute(request)
       val iterator = new PrefetchingResultSetIterator(rs, fetchSize)
       val result = iterator.map(rowTransformer.read(_, columnNamesArray))
@@ -107,22 +97,6 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
     }
   }
 
-  /**
-   * Return a new CassandraPartitionKeyRDD that is made by taking the previous RDD and re partitioning it
-   * with the Replica Partitioner. This will discard the current RDD in the execution chain and have it replaced
-   * with a shuffle and a new CassandraPartitionKeyRDD depending on that shuffle.
-   * @param partitionsPerReplicaSet
-   * @param rwf
-   * @return
-   */
-  def partitionByReplica(partitionsPerReplicaSet: Int = 10)
-                        (implicit rwf: RowWriterFactory[O]): CassandraJoinRDD[O, N] = {
-    val part = new ReplicaPartitioner(partitionsPerReplicaSet,connector)
-    val output = this.keyByReplica.partitionBy(part).map(_._2)
-    logDebug(s"PartitionByReplica generated $output of type ${output.getClass.toString} ")
-    val result = new CassandraJoinRDD[O, N](prev = output, keyspaceName = keyspaceName, tableName = tableName, connector = connector)
-    result
-  }
 
 
 }
