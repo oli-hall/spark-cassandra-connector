@@ -10,27 +10,25 @@ import org.apache.spark.sql.execution.LeafNode
 
 @DeveloperApi
 case class CassandraTableScan(
-  attributes: Seq[Attribute],
-  relation: CassandraRelation,
-  pushdownPred: Seq[Expression])(
-  @transient val context: CassandraSQLContext)
-  extends LeafNode with Logging{
+                               attributes: Seq[Attribute],
+                               relation: CassandraRelation,
+                               pushdownPred: Seq[Expression])(
+                               @transient val context: CassandraSQLContext)
+  extends LeafNode with Logging {
 
   private def inputRdd = {
     logInfo(s"attributes : ${attributes.map(_.name).mkString(",")}")
     //TODO: cluster level CassandraConnector, read configuration settings
-    var rdd = context.sparkContext.cassandraTable[CassandraSQLRow](relation.keyspaceName, relation.tableName)
+    val rdd = context.sparkContext.cassandraTable[CassandraSQLRow](relation.keyspaceName, relation.tableName)
     if (attributes.map(_.name).size > 0)
-      rdd = rdd.select(attributes.map(a => relation.columnNameByLowercase(a.name): NamedColumnRef): _*)
+      rdd.select(attributes.map(a => relation.columnNameByLowercase(a.name): NamedColumnRef): _*)
     if (pushdownPred.nonEmpty) {
-      val(cql, values) = whereClause(pushdownPred)
-      rdd = rdd.where(cql, values: _*)
+      val (cql, values) = whereClause(pushdownPred)
+      rdd.where(cql, values: _*)
     }
-
-    rdd
   }
 
-  private[this] def whereClause(pushdownPred: Seq[Expression]) : (String, Seq[Any]) = {
+  private[this] def whereClause(pushdownPred: Seq[Expression]): (String, Seq[Any]) = {
     val cql = pushdownPred.map(predicateToCql).mkString(" AND ")
     val args = pushdownPred.flatMap(predicateRhsValue)
     (cql, args)
@@ -47,12 +45,12 @@ case class CassandraTableScan(
 
   private[this] def predicateOperator(predicate: Expression): String = {
     predicate match {
-      case _: EqualTo =>            "="
-      case _: LessThan =>           "<"
-      case _: LessThanOrEqual =>    "<="
-      case _: GreaterThan =>        ">"
+      case _: EqualTo => "="
+      case _: LessThan => "<"
+      case _: LessThanOrEqual => "<="
+      case _: GreaterThan => ">"
       case _: GreaterThanOrEqual => ">="
-      case _: In | _: InSet =>      "IN"
+      case _: In | _: InSet => "IN"
       case _ => throw new UnsupportedOperationException(
         "It's not a valid predicate to be pushed down, only >, <, >=, <= and In are allowed: " + predicate)
     }
@@ -65,7 +63,7 @@ case class CassandraTableScan(
       case in: In =>
         in.value.references.head.name + " IN " + in.list.map(_ => "?").mkString("(", ", ", ")")
       case inset: InSet =>
-        inset.value.references.head.name + " IN " + inset.hset.toSeq.map(_ => "?").mkString("(", ", " , ")")
+        inset.value.references.head.name + " IN " + inset.hset.toSeq.map(_ => "?").mkString("(", ", ", ")")
       case _ =>
         throw new UnsupportedOperationException(
           "It's not a valid predicate to be pushed down, only >, <, >=, <= and In are allowed: " + predicate)
@@ -79,6 +77,7 @@ case class CassandraTableScan(
    * cast CassandraRDD to RDD[ROW]
    */
   override def execute() = inputRdd.asInstanceOf[RDD[Row]]
+
   override def output = if (attributes.isEmpty) relation.output else attributes
 
 }

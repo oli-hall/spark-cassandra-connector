@@ -6,7 +6,7 @@ import java.net.InetAddress
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.rdd.partitioner.ReplicaPartitioner
 import com.datastax.spark.connector.rdd.reader._
-import com.datastax.spark.connector.rdd.{CassandraJoinRDD, CassandraRDD, SpannedRDD, ValidRDDType}
+import com.datastax.spark.connector.rdd.{CassandraJoinRDD, SpannedRDD, ValidRDDType}
 import com.datastax.spark.connector.writer._
 import com.datastax.spark.connector.writer.ReplicaMapper
 
@@ -113,7 +113,7 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
   def joinWithCassandraTable[R](keyspaceName: String, tableName: String)
                            (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                             newType: ClassTag[R], rrf: RowReaderFactory[R], ev: ValidRDDType[R],
-                            currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraRDD[R] = {
+                            currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraJoinRDD[T, R] = {
     new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector)
   }
 
@@ -125,9 +125,9 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
   def repartitionByCassandraReplica(keyspaceName: String, tableName: String, partitionsPerReplicaSet: Int = 10)
                                    (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                                     currentType: ClassTag[T], rwf: RowWriterFactory[T]) = {
-
     val part = new ReplicaPartitioner(partitionsPerReplicaSet, connector)
-    val output = rdd.keyByCassandraReplica(keyspaceName, tableName).partitionBy(part).map(_._2)
+    val repart = rdd.keyByCassandraReplica(keyspaceName, tableName).partitionBy(part)
+    val output = repart.mapPartitions(_.map(_._2), preservesPartitioning = true)
     output
   }
 

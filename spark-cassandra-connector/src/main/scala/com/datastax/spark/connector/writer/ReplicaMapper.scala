@@ -9,8 +9,8 @@ import com.datastax.driver.core._
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.util.Logging
 
-import scala.collection._
 import scala.collection.JavaConversions._
+import scala.collection._
 
 class ReplicaMapper[T] private(
                                  connector: CassandraConnector,
@@ -57,12 +57,12 @@ class ReplicaMapper[T] private(
    * @param stmt The statement to be bound
    * @return A iterator of bound statements ready to be executed
    */
-  def bindStatements(data: Iterator[T], stmt:PreparedStatement): Iterator[BoundStatement] = {
+  def bindStatements(data: Iterator[T], stmt: PreparedStatement): Iterator[(T, BoundStatement)] = {
     val routingKeyGenerator = new RoutingKeyGenerator(tableDef, columnNames)
     //Although we have a batchStmtBuilder object here the length will always be 1 so no batches
     //will actually be produced
     val batchStmtBuilder = new BatchStatementBuilder(Type.UNLOGGED, rowWriter, stmt, protocolVersion, routingKeyGenerator, ConsistencyLevel.LOCAL_ONE)
-    data.map(row => batchStmtBuilder.bind(row))
+    data.map(row => (row, batchStmtBuilder.bind(row)))
   }
 
   /**

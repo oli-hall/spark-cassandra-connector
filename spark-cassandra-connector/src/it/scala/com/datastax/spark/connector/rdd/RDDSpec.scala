@@ -3,6 +3,7 @@ package com.datastax.spark.connector.rdd
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector.embedded._
+import com.datastax.spark.connector.rdd.partitioner.EndpointPartition
 import com.datastax.spark.connector.testkit.SharedEmbeddedCassandra
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -36,104 +37,200 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     }
   }
 
-  def checkArrayCassandraRow(result: Array[CassandraRow]) = for (key <- keys) {
-    result.length should be(keys.length)
-    val sorted_result = result.sortBy(_.getInt(0))
-    sorted_result(key).getInt("key") should be(key)
-    sorted_result(key).getLong("group") should be(key * 100)
-    sorted_result(key).getString("value") should be(key.toString)
+  def checkLeftSide[T, S](leftSideSource: Array[T], result: Array[(T, S)]) = {
+    markup("Checking LeftSide")
+    val leftSideResults = result.map(_._1)
+    for (element <- leftSideSource) {
+      leftSideResults should contain(element)
+    }
   }
 
-  def checkArrayTuple(result: Array[(Int, Long, String)]) = for (key <- keys) {
+  def checkArrayCassandraRow[T](result: Array[(T, CassandraRow)]) = {
+    markup("Checking RightSide Join Results")
     result.length should be(keys.length)
-    val sorted_result = result.sortBy(_._1)
+    for (key <- keys) {
+      val sorted_result = result.map(_._2).sortBy(_.getInt(0))
+      sorted_result(key).getInt("key") should be(key)
+      sorted_result(key).getLong("group") should be(key * 100)
+      sorted_result(key).getString("value") should be(key.toString)
+    }
+  }
+
+  def checkArrayTuple[T](result: Array[(T, (Int, Long, String))]) = {
+    markup("Checking RightSide Join Results")
+    result.length should be(keys.length)
+    for (key <- keys) {
+      val sorted_result = result.map(_._2).sortBy(_._1)
     sorted_result(key)._1 should be(key)
     sorted_result(key)._2 should be(key * 100)
     sorted_result(key)._3 should be(key.toString)
   }
-
-  def checkArrayFullRow(result: Array[FullRow]) = for (key <- keys) {
-    result.length should be(keys.length)
-    val sorted_result = result.sortBy(_.key)
-    sorted_result(key).key should be(key)
-    sorted_result(key).group should be(key * 100)
-    sorted_result(key).value should be(key.toString)
   }
 
+  def checkArrayFullRow[T](result: Array[(T, FullRow)]) = {
+    markup("Checking RightSide Join Results")
+    result.length should be(keys.length)
+    for (key <- keys) {
+      val sorted_result = result.map(_._2).sortBy(_.key)
+      sorted_result(key).key should be(key)
+      sorted_result(key).group should be(key * 100)
+      sorted_result(key).value should be(key.toString)
+    }
+  }
 
   "A Tuple RDD specifying partition keys" should "be joinable with Cassandra" in {
-    val someCass = sc.parallelize(keys).map(Tuple1(_)).joinWithCassandraTable(keyspace, tableName)
+    val source = sc.parallelize(keys).map(Tuple1(_))
+    val someCass = source.joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayCassandraRow(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(Tuple1(_)).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
+    val source = sc.parallelize(keys).map(Tuple1(_))
+    val someCass = source.joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayTuple(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.parallelize(keys).map(Tuple1(_)).joinWithCassandraTable[FullRow](keyspace, tableName)
+    val source = sc.parallelize(keys).map(Tuple1(_))
+    val someCass = source.joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayFullRow(result)
+    checkLeftSide(leftSide, result)
   }
 
+  it should "be repartitionable" in {
+    val source = sc.parallelize(keys).map(Tuple1(_))
+    val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
+    repart.partitions.length should be(conn.hosts.size * 10)
+    val someCass = repart.joinWithCassandraTable(keyspace, tableName)
+    someCass.getPartitions.foreach {
+      case e: EndpointPartition =>
+        conn.hosts should contain(e.endpoints.head)
+      case _ =>
+        fail("Unable to get endpoints on repartitioned RDD, This means preferred locations will be broken")
+    }
+    val result = someCass.collect
+    checkArrayCassandraRow(result)
+  }
 
   "A case-class RDD specifying partition keys" should "be retrievable from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable(keyspace, tableName)
+    val source = sc.parallelize(keys).map(x => new KVRow(x))
+    val someCass = source.joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayCassandraRow(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
+    val source = sc.parallelize(keys).map(x => new KVRow(x))
+    val someCass = source.joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayTuple(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable[FullRow](keyspace, tableName)
+    val source = sc.parallelize(keys).map(x => new KVRow(x))
+    val someCass = source.joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayFullRow(result)
+    checkLeftSide(leftSide, result)
+  }
+
+  it should "be repartitionable" in {
+    val source = sc.parallelize(keys).map(x => new KVRow(x))
+    val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
+    repart.partitions.length should be(conn.hosts.size * 10)
+    val someCass = repart.joinWithCassandraTable(keyspace, tableName)
+    someCass.getPartitions.foreach {
+      case e: EndpointPartition =>
+        conn.hosts should contain(e.endpoints.head)
+      case _ =>
+        fail("Unable to get endpoints on repartitioned RDD, This means preferred locations will be broken")
+    }
+    val result = someCass.collect
+    checkArrayCassandraRow(result)
   }
 
 
   "A Tuple RDD specifying partitioning keys and clustering keys " should "be retrievable from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).joinWithCassandraTable(keyspace, tableName)
+    val source = sc.parallelize(keys).map(x => (x, x * 100: Long))
+    val someCass = source.joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayCassandraRow(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
+    val source = sc.parallelize(keys).map(x => (x, x * 100: Long))
+    val someCass = source.joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayTuple(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.parallelize(keys).map(x => (x, x * 100: Long)).joinWithCassandraTable[FullRow](keyspace, tableName)
+    val source = sc.parallelize(keys).map(x => (x, x * 100: Long))
+    val someCass = source.joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayFullRow(result)
+    checkLeftSide(leftSide, result)
+  }
+
+  it should "be repartitionable" in {
+    val source = sc.parallelize(keys).map(x => (x, x * 100: Long))
+    val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
+    repart.partitions.length should be(conn.hosts.size * 10)
+    val someCass = repart.joinWithCassandraTable(keyspace, tableName)
+    someCass.getPartitions.foreach {
+      case e: EndpointPartition =>
+        conn.hosts should contain(e.endpoints.head)
+      case _ =>
+        fail("Unable to get endpoints on repartitioned RDD, This means preferred locations will be broken")
+    }
+    val result = someCass.collect
+    checkArrayCassandraRow(result)
   }
 
 
   "A CassandraRDD " should "be joinable with Cassandra" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable(keyspace, tableName)
+    val source = sc.cassandraTable(keyspace, otherTable)
+    val someCass = source.joinWithCassandraTable(keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayCassandraRow(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a tuple from Cassandra" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
+    val source = sc.cassandraTable(keyspace, otherTable)
+    val someCass = source.joinWithCassandraTable[(Int, Long, String)](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayTuple(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should "be retreivable as a case class from cassandra" in {
-    val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable[FullRow](keyspace, tableName)
+    val source = sc.cassandraTable(keyspace, otherTable)
+    val someCass = source.joinWithCassandraTable[FullRow](keyspace, tableName)
     val result = someCass.collect
+    val leftSide = source.collect
     checkArrayFullRow(result)
+    checkLeftSide(leftSide, result)
   }
 
   it should " be retreivable without repartitioning" in {
@@ -143,15 +240,30 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     checkArrayCassandraRow(result)
   }
 
-  "A fetched CassandraRDD " should " support select clauses " in {
+  it should "be repartitionable" in {
+    val source = sc.cassandraTable(keyspace, otherTable)
+    val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
+    repart.partitions.length should be(conn.hosts.size * 10)
+    val someCass = repart.joinWithCassandraTable(keyspace, tableName)
+    someCass.getPartitions.foreach {
+      case e: EndpointPartition =>
+        conn.hosts should contain(e.endpoints.head)
+      case _ =>
+        fail("Unable to get endpoints on repartitioned RDD, This means preferred locations will be broken")
+    }
+    val result = someCass.collect
+    checkArrayCassandraRow(result)
+  }
+
+  "A Joined CassandraRDD " should " support select clauses " in {
     val someCass = sc.cassandraTable(keyspace, otherTable).joinWithCassandraTable(keyspace, tableName).select("value")
-    val results = someCass.collect.map(_.getInt("value")).sorted
+    val results = someCass.collect.map(_._2).map(_.getInt("value")).sorted
     results should be(keys.toArray)
   }
 
   it should " support where clauses" in {
     val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable(keyspace, tableName).where("group >= 500")
-    val results = someCass.collect
+    val results = someCass.collect.map(_._2)
     results should have length (keys.filter(_ >= 5).length)
   }
 

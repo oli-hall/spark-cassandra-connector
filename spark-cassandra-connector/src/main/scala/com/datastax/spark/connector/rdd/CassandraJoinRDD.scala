@@ -21,7 +21,7 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
                                       readConf: ReadConf = ReadConf())
                                       (implicit oldTag: ClassTag[O], newTag: ClassTag[N],
                                        @transient rwf: RowWriterFactory[O], @transient rrf: RowReaderFactory[N])
-  extends CassandraRDD[N](prev.sparkContext, connector, keyspaceName, tableName, columns, where, readConf, prev.dependencies) {
+  extends BaseCassandraRDD[N, (O, N)](prev.sparkContext, connector, keyspaceName, tableName, columns, where, readConf, prev.dependencies) {
 
   //Make sure copy operations make new CJRDDs and not CRDDs
   override def copy(columnNames: ColumnSelector = columnNames,
@@ -56,7 +56,7 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
    * @param context
    * @return
    */
-  override def compute(split: Partition, context: TaskContext): Iterator[N] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[(O, N)] = {
     connector.withSessionDo { session =>
       logDebug(s"Query::: $singleKeyCqlQuery")
       val stmt = session.prepare(singleKeyCqlQuery).setConsistencyLevel(consistencyLevel)
@@ -64,13 +64,13 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
       }
     }
 
-  def fetchIterator(session:Session, stmt: PreparedStatement, lastIt:Iterator[O]): Iterator[N] = {
+  def fetchIterator(session: Session, stmt: PreparedStatement, lastIt: Iterator[O]): Iterator[(O, N)] = {
     val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
-    converter.bindStatements(lastIt, stmt).flatMap { request => //flatMap Because we may get multiple results for a single query
+    converter.bindStatements(lastIt, stmt).flatMap { case (leftSide, request) => //flatMap Because we may get multiple results for a single query
       implicit val pv = protocolVersion(session)
       val rs = session.execute(request)
       val iterator = new PrefetchingResultSetIterator(rs, fetchSize)
-      val result = iterator.map(rowTransformer.read(_, columnNamesArray))
+      val result = iterator.map(rightSide => (leftSide, rowTransformer.read(rightSide, columnNamesArray)))
       result
     }
   }
