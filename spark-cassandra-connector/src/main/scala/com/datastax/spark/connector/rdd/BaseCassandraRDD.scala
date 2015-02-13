@@ -6,9 +6,8 @@ import com.datastax.driver.core.{ProtocolVersion, Session}
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.rdd.reader._
-import com.datastax.spark.connector.util.Logging
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Dependency, SparkContext}
+import org.apache.spark.{Logging, Dependency, SparkContext}
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -54,33 +53,6 @@ abstract class BaseCassandraRDD[R, P] private[connector](
                                                           @transient rtf: RowReaderFactory[R])
   extends RDD[P](sc, dependecyList) with Logging {
 
-  /* Logging classes inheritance conflict fix. */
-  override def log = super[Logging].log
-
-  override def logName = super[Logging].logName
-
-  override def logInfo(msg: => String) = super[Logging].logInfo(msg)
-
-  override def logDebug(msg: => String) = super[Logging].logDebug(msg)
-
-  override def logTrace(msg: => String) = super[Logging].logTrace(msg)
-
-  override def logWarning(msg: => String) = super[Logging].logWarning(msg)
-
-  override def logError(msg: => String) = super[Logging].logError(msg)
-
-  override def logInfo(msg: => String, throwable: Throwable) = super[Logging].logInfo(msg, throwable)
-
-  override def logDebug(msg: => String, throwable: Throwable) = super[Logging].logDebug(msg, throwable)
-
-  override def logTrace(msg: => String, throwable: Throwable) = super[Logging].logTrace(msg, throwable)
-
-  override def logWarning(msg: => String, throwable: Throwable) = super[Logging].logWarning(msg, throwable)
-
-  override def logError(msg: => String, throwable: Throwable) = super[Logging].logError(msg, throwable)
-
-  override def isTraceEnabled() = super[Logging].isTraceEnabled()
-
   protected def fetchSize = readConf.fetchSize
 
   protected def splitSize = readConf.splitSize
@@ -89,17 +61,17 @@ abstract class BaseCassandraRDD[R, P] private[connector](
 
   protected def copy(columnNames: ColumnSelector = columnNames,
                      where: CqlWhereClause = where,
-                     readConf: ReadConf = readConf, connector: CassandraConnector = connector): BaseCassandraRDD[R, P]
+                     readConf: ReadConf = readConf, connector: CassandraConnector = connector): this.type
 
   /** Returns a copy of this Cassandra RDD with specified connector */
-  def withConnector(connector: CassandraConnector): BaseCassandraRDD[R, P] =
+  def withConnector(connector: CassandraConnector) =
     copy(connector = connector)
 
   /** Adds a CQL `WHERE` predicate(s) to the query.
     * Useful for leveraging secondary indexes in Cassandra.
     * Implicitly adds an `ALLOW FILTERING` clause to the WHERE clause, however beware that some predicates
     * might be rejected by Cassandra, particularly in cases when they filter on an unindexed, non-clustering column. */
-  def where(cql: String, values: Any*): BaseCassandraRDD[R, P] = {
+  def where(cql: String, values: Any*): this.type = {
     copy(where = where and CqlWhereClause(Seq(cql), values))
   }
 
@@ -148,7 +120,7 @@ abstract class BaseCassandraRDD[R, P] private[connector](
     * just column names (which is also backward compatible) and optional add `.ttl` or `.writeTime`
     * suffix in order to create an appropriate [[NamedColumnRef]] instance.
     */
-  def select(columns: NamedColumnRef*): BaseCassandraRDD[R, P] = {
+  def select(columns: NamedColumnRef*): this.type = {
     copy(columnNames = SomeColumns(narrowColumnSelection(columns): _*))
   }
 

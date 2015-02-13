@@ -74,7 +74,7 @@ class CassandraRDD[R] private[connector] (
       "RDD transformation requires a non-null SparkContext. Unfortunately SparkContext in this CassandraRDD is null. " +
       "This can happen after CassandraRDD has been deserialized. SparkContext is not Serializable, therefore it deserializes to null." +
       "RDD transformations are not allowed inside lambdas used in other RDD transformations.")
-    new CassandraRDD(sc, connector, keyspaceName, tableName, columnNames, where, readConf, empty)
+    new CassandraRDD[R](sc, connector, keyspaceName, tableName, columnNames, where, readConf).asInstanceOf[this.type]
   }
 
   /** Maps each row into object of a different type using provided function taking column value(s) as argument(s).

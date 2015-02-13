@@ -1,6 +1,7 @@
 package org.apache.spark.sql.cassandra
 
 import com.datastax.spark.connector._
+import com.datastax.spark.connector.rdd.CassandraRDD
 import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.rdd.RDD
@@ -16,16 +17,27 @@ case class CassandraTableScan(
                                @transient val context: CassandraSQLContext)
   extends LeafNode with Logging {
 
+  private type RDDType = CassandraRDD[CassandraSQLRow]
+
+  private val maybeSelect = if (attributes.nonEmpty) { rdd: RDDType =>
+    rdd.select(attributes.map(a => relation.columnNameByLowercase(a.name): NamedColumnRef): _*)
+  } else { rdd: RDDType =>
+    rdd
+  }
+
+  private val maybePushdownPredicates = whereClause(pushdownPred) match {
+    case (cql, values) if values.nonEmpty => rdd: RDDType => rdd.where(cql, values: _*)
+    case _ => rdd: RDDType => rdd
+  }
+
   private def inputRdd = {
     logInfo(s"attributes : ${attributes.map(_.name).mkString(",")}")
     //TODO: cluster level CassandraConnector, read configuration settings
+
     val rdd = context.sparkContext.cassandraTable[CassandraSQLRow](relation.keyspaceName, relation.tableName)
-    if (attributes.map(_.name).size > 0)
-      rdd.select(attributes.map(a => relation.columnNameByLowercase(a.name): NamedColumnRef): _*)
-    if (pushdownPred.nonEmpty) {
-      val (cql, values) = whereClause(pushdownPred)
-      rdd.where(cql, values: _*)
-    }
+
+    // let me make it in more functional way, perhaps introducing a little of Scala-ism :)
+    maybeSelect andThen maybePushdownPredicates apply rdd
   }
 
   private[this] def whereClause(pushdownPred: Seq[Expression]): (String, Seq[Any]) = {

@@ -24,10 +24,10 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
   extends BaseCassandraRDD[N, (O, N)](prev.sparkContext, connector, keyspaceName, tableName, columns, where, readConf, prev.dependencies) {
 
   //Make sure copy operations make new CJRDDs and not CRDDs
-  override def copy(columnNames: ColumnSelector = columnNames,
+  override protected def copy(columnNames: ColumnSelector = columnNames,
                     where: CqlWhereClause = where,
-                    readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraJoinRDD[O, N] =
-    new CassandraJoinRDD[O, N](prev, keyspaceName, tableName, connector, columnNames, where, readConf)
+                    readConf: ReadConf = readConf, connector: CassandraConnector = connector) =
+    new CassandraJoinRDD[O, N](prev, keyspaceName, tableName, connector, columnNames, where, readConf).asInstanceOf[this.type]
 
   /** Todo, allow for more complicated joining returns the names of columns to be joined on in the table. */
   lazy val joinColumnNames: Seq[NamedColumnRef] = {
