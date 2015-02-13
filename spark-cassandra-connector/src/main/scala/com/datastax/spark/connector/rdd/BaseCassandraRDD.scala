@@ -15,12 +15,12 @@ import scala.reflect.ClassTag
 
 /** RDD representing a Cassandra table.
   * This class is the main entry point for analyzing data in Cassandra database with Spark.
-  * Obtain objects of this class by calling [[com.datastax.spark.connector.SparkContextFunctions# c a s s a n d r a T a b l e c a s s a n d r a T a b l e]].
+  * Obtain objects of this class by calling [[com.datastax.spark.connector.SparkContextFunctions#cassandraTablecassandraTable]].
   *
   * Configuration properties should be passed in the `SparkConf` configuration of `SparkContext`.
   * `CassandraRDD` needs to open connection to Cassandra, therefore it requires appropriate connection property values
   * to be present in `SparkConf`. For the list of required and available properties, see
-  * [[com.datastax.spark.connector.cql.CassandraConnector C a s s a n d r a C o n n e c t o r]].
+  * [[com.datastax.spark.connector.cql.CassandraConnector CassandraConnector]].
   *
   * `CassandraRDD` divides the dataset into smaller partitions, processed locally on every cluster node.
   * A data partition consists of one or more contiguous token ranges.

@@ -74,7 +74,7 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
     }
   }
 
-  def fetchIterator(session: Session, bsb: BoundStatementBuilder[O], lastIt: Iterator[O]): Iterator[(O, N)] = {
+  private def fetchIterator(session: Session, bsb: BoundStatementBuilder[O], lastIt: Iterator[O]): Iterator[(O, N)] = {
     val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
     implicit val pv = protocolVersion(session)
     lastIt.map(leftSide => (leftSide, bsb.bind(leftSide))).flatMap { case (leftSide, boundStmt) =>
