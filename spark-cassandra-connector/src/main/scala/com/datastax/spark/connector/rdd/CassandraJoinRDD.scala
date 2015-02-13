@@ -1,6 +1,6 @@
 package com.datastax.spark.connector.rdd
 
-import com.datastax.driver.core.{PreparedStatement, Session}
+import com.datastax.driver.core.Session
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.rdd.partitioner.{ReplicaPartition, ReplicaPartitioner}
@@ -11,25 +11,33 @@ import org.apache.spark.{Partition, Partitioner, TaskContext}
 
 import scala.reflect.ClassTag
 
-// O[ld] Is the type of the RDD we are Mapping From, N[ew] the type were are mapping too Old
+// O[ld] Is the type of the left Side RDD, N[ew] the type of the right hand side Results
 class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
-                                      keyspaceName: String,
-                                      tableName: String,
-                                      connector: CassandraConnector,
-                                      columns: ColumnSelector = AllColumns,
-                                      where: CqlWhereClause = CqlWhereClause.empty,
-                                      readConf: ReadConf = ReadConf())
-                                      (implicit oldTag: ClassTag[O], newTag: ClassTag[N],
-                                       @transient rwf: RowWriterFactory[O], @transient rrf: RowReaderFactory[N])
+                                                keyspaceName: String,
+                                                tableName: String,
+                                                connector: CassandraConnector,
+                                                columns: ColumnSelector = AllColumns,
+                                                where: CqlWhereClause = CqlWhereClause.empty,
+                                                readConf: ReadConf = ReadConf())
+                                               (implicit oldTag: ClassTag[O], newTag: ClassTag[N],
+                                                @transient rwf: RowWriterFactory[O], @transient rrf: RowReaderFactory[N])
   extends BaseCassandraRDD[N, (O, N)](prev.sparkContext, connector, keyspaceName, tableName, columns, where, readConf, prev.dependencies) {
 
   //Make sure copy operations make new CJRDDs and not CRDDs
   override def copy(columnNames: ColumnSelector = columnNames,
-                   where: CqlWhereClause = where,
-                   readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraJoinRDD[O, N] =
+                    where: CqlWhereClause = where,
+                    readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraJoinRDD[O, N] =
     new CassandraJoinRDD[O, N](prev, keyspaceName, tableName, connector, columnNames, where, readConf)
 
-  private val converter = ReplicaMapper[O](connector, keyspaceName, tableName)
+  /** Todo, allow for more complicated joining returns the names of columns to be joined on in the table. */
+  lazy val joinColumnNames: Seq[NamedColumnRef] = {
+    tableDef.partitionKey.map(col => col.columnName: NamedColumnRef).toSeq
+  }
+
+  val rowWriter = implicitly[RowWriterFactory[O]].rowWriter(
+    tableDef,
+    joinColumnNames.map(_.columnName),
+    checkColumns = CheckLevel.CheckPartitionOnly)
 
   //We need to make sure we get selectedColumnNames before serialization so that our RowReader is
   //built
@@ -39,8 +47,8 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
       "Partition keys are not allowed in the .where() clause of a Cassandra Join")
     logDebug("Generating Single Key Query Prepared Statement String")
     val columns = selectedColumnNames.map(_.cql).mkString(", ")
-    val partitionWhere = tableDef.partitionKey.map(_.columnName).map(name => s"${quote(name)} = :$name")
-    val filter = (where.predicates ++ partitionWhere).mkString(" AND ")
+    val joinWhere = joinColumnNames.map(_.columnName).map(name => s"${quote(name)} = :$name")
+    val filter = (where.predicates ++ joinWhere).mkString(" AND ")
     val quotedKeyspaceName = quote(keyspaceName)
     val quotedTableName = quote(tableName)
     val query = s"SELECT $columns FROM $quotedKeyspaceName.$quotedTableName WHERE $filter"
@@ -59,16 +67,18 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
   override def compute(split: Partition, context: TaskContext): Iterator[(O, N)] = {
     connector.withSessionDo { session =>
       logDebug(s"Query::: $singleKeyCqlQuery")
-      val stmt = session.prepare(singleKeyCqlQuery).setConsistencyLevel(consistencyLevel)
-      fetchIterator(session, stmt, prev.iterator(split, context))
-      }
-    }
-
-  def fetchIterator(session: Session, stmt: PreparedStatement, lastIt: Iterator[O]): Iterator[(O, N)] = {
-    val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
-    converter.bindStatements(lastIt, stmt).flatMap { case (leftSide, request) => //flatMap Because we may get multiple results for a single query
       implicit val pv = protocolVersion(session)
-      val rs = session.execute(request)
+      val stmt = session.prepare(singleKeyCqlQuery).setConsistencyLevel(consistencyLevel)
+      val bsb = new BoundStatementBuilder[O](rowWriter, stmt, pv)
+      fetchIterator(session, bsb, prev.iterator(split, context))
+    }
+  }
+
+  def fetchIterator(session: Session, bsb: BoundStatementBuilder[O], lastIt: Iterator[O]): Iterator[(O, N)] = {
+    val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
+    implicit val pv = protocolVersion(session)
+    lastIt.map(leftSide => (leftSide, bsb.bind(leftSide))).flatMap { case (leftSide, boundStmt) =>
+      val rs = session.execute(boundStmt)
       val iterator = new PrefetchingResultSetIterator(rs, fetchSize)
       val result = iterator.map(rightSide => (leftSide, rowTransformer.read(rightSide, columnNamesArray)))
       result
@@ -84,7 +94,7 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
    */
   override def getPartitions: Array[Partition] = {
     partitioner match {
-      case Some(rp:ReplicaPartitioner) => prev.partitions.map(partition => rp.getEndpointParititon(partition))
+      case Some(rp: ReplicaPartitioner) => prev.partitions.map(partition => rp.getEndpointParititon(partition))
       case _ => prev.partitions
     }
   }
@@ -96,7 +106,6 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
       case other: Partition => prev.preferredLocations(split) //Fall back to last RDD's preferred spot
     }
   }
-
 
 
 }

@@ -4,7 +4,6 @@ package com.datastax.spark.connector.writer
 import java.io.IOException
 import java.net.InetAddress
 
-import com.datastax.driver.core.BatchStatement.Type
 import com.datastax.driver.core._
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.util.Logging
@@ -51,21 +50,6 @@ class ReplicaMapper[T] private(
   }
 
   /**
-   * Given a bound statement and an iterator, return all the bound statements so they can be
-   * executed.
-   * @param data Data to be bound into the statement
-   * @param stmt The statement to be bound
-   * @return A iterator of bound statements ready to be executed
-   */
-  def bindStatements(data: Iterator[T], stmt: PreparedStatement): Iterator[(T, BoundStatement)] = {
-    val routingKeyGenerator = new RoutingKeyGenerator(tableDef, columnNames)
-    //Although we have a batchStmtBuilder object here the length will always be 1 so no batches
-    //will actually be produced
-    val batchStmtBuilder = new BatchStatementBuilder(Type.UNLOGGED, rowWriter, stmt, protocolVersion, routingKeyGenerator, ConsistencyLevel.LOCAL_ONE)
-    data.map(row => (row, batchStmtBuilder.bind(row)))
-  }
-
-  /**
    * Pairs each piece of data with the Cassandra Replicas which that data would be found on
    * @param data A source of data which can be bound to a statement by BatchStatementBuilder
    * @return an Iterator over the same data keyed by the replica's ip addresses
@@ -75,9 +59,12 @@ class ReplicaMapper[T] private(
     connector.withSessionDo { session =>
       val stmt = prepareDummyStatement(session)
       val routingKeyGenerator = new RoutingKeyGenerator(tableDef, columnNames)
-      val batchStmtBuilder = new BatchStatementBuilder(Type.UNLOGGED, rowWriter, stmt, protocolVersion, routingKeyGenerator, ConsistencyLevel.LOCAL_ONE)
+      val boundStmtBuilder = new BoundStatementBuilder(rowWriter, stmt, protocolVersion)
       data.map { row =>
-        val hosts = cluster.getMetadata.getReplicas(keyspaceName, routingKeyGenerator.apply(batchStmtBuilder.bind(row))).map(_.getAddress).toSet[InetAddress]
+        val hosts = cluster.getMetadata
+          .getReplicas(keyspaceName, routingKeyGenerator.apply(boundStmtBuilder.bind(row)))
+          .map(_.getAddress)
+          .toSet[InetAddress]
         (hosts , row)
         }
       }
