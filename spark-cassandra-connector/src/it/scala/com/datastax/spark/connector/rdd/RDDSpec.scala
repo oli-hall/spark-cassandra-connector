@@ -21,6 +21,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   val keyspace = "rdd_test"
   val tableName = "key_value"
   val otherTable = "other_table"
+  val wideTable = "wide_table"
   val keys = 0 to 200
   val total = 0 to 10000
 
@@ -34,6 +35,13 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$otherTable (key INT, group BIGINT,  PRIMARY KEY (key))")
     for (value <- keys) {
       session.execute(s"INSERT INTO $keyspace.$otherTable (key, group) VALUES ($value, ${value * 100})")
+    }
+
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$wideTable (key INT, group BIGINT, value TEXT, PRIMARY KEY (key, group))")
+    for (value <- keys) {
+      for (cconeValue <- value * 100 until value * 100 + 5) {
+        session.execute(s"INSERT INTO $keyspace.$wideTable (key, group, value) VALUES ($value, ${cconeValue}, '${value.toString}')")
+      }
     }
   }
 
@@ -205,6 +213,24 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     checkArrayCassandraRow(result)
   }
 
+  it should "be joinable on both partitioning key and clustering key" in {
+    val source = sc.parallelize(keys).map(x => (x, x * 100))
+    val someCass = source.joinWithCassandraTable(keyspace, wideTable, joinColumns = SomeColumns("key", "group"))
+    val result = someCass.collect
+    val leftSide = source.collect
+    checkArrayCassandraRow(result)
+    checkLeftSide(leftSide, result)
+  }
+
+  it should "be joinable on both partitioning key and clustering key using on" in {
+    val source = sc.parallelize(keys).map(x => (x, x * 100))
+    val someCass = source.joinWithCassandraTable(keyspace, wideTable).on(SomeColumns("key", "group"))
+    val result = someCass.collect
+    val leftSide = source.collect
+    checkArrayCassandraRow(result)
+    checkLeftSide(leftSide, result)
+  }
+
 
   "A CassandraRDD " should "be joinable with Cassandra" in {
     val source = sc.cassandraTable(keyspace, otherTable)
@@ -272,5 +298,6 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
       val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable(keyspace, tableName).where("key = 200")
     }
   }
+
 
 }

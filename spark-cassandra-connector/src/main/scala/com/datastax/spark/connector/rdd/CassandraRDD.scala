@@ -14,11 +14,15 @@ import com.datastax.spark.connector.{SomeColumns, AllColumns, ColumnSelector}
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.rdd.partitioner.{CassandraRDDPartitioner, CassandraPartition, CqlTokenRange}
 import com.datastax.spark.connector.rdd.partitioner.dht.TokenFactory
+import com.datastax.spark.connector.rdd.partitioner.{CassandraPartition, CassandraRDDPartitioner, CqlTokenRange}
 import com.datastax.spark.connector.rdd.reader._
 import com.datastax.spark.connector.types.{ColumnType, TypeConverter}
-import com.datastax.spark.connector.util.{Logging, CountingIterator}
-import com.datastax.spark.connector._
+import com.datastax.spark.connector.util.CountingIterator
+import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
 
+import scala.collection.JavaConversions._
+import scala.language.existentials
+import scala.reflect.ClassTag
 
 
 /** RDD representing a Cassandra table.

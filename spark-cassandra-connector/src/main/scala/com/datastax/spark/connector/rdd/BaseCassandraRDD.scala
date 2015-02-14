@@ -7,7 +7,7 @@ import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.rdd.reader._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Logging, Dependency, SparkContext}
+import org.apache.spark.{Dependency, Logging, SparkContext}
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -15,12 +15,12 @@ import scala.reflect.ClassTag
 
 /** RDD representing a Cassandra table.
   * This class is the main entry point for analyzing data in Cassandra database with Spark.
-  * Obtain objects of this class by calling [[com.datastax.spark.connector.SparkContextFunctions#cassandraTablecassandraTable]].
+  * Obtain objects of this class by calling [[com.datastax.spark.connector.SparkContextFunctions# c a s s a n d r a T a b l e c a s s a n d r a T a b l e]].
   *
   * Configuration properties should be passed in the `SparkConf` configuration of `SparkContext`.
   * `CassandraRDD` needs to open connection to Cassandra, therefore it requires appropriate connection property values
   * to be present in `SparkConf`. For the list of required and available properties, see
-  * [[com.datastax.spark.connector.cql.CassandraConnector CassandraConnector]].
+  * [[com.datastax.spark.connector.cql.CassandraConnector C a s s a n d r a C o n n e c t o r]].
   *
   * `CassandraRDD` divides the dataset into smaller partitions, processed locally on every cluster node.
   * A data partition consists of one or more contiguous token ranges.
@@ -102,6 +102,7 @@ abstract class BaseCassandraRDD[R, P] private[connector](
       case SomeColumns(cs@_*) =>
         checkColumnsAvailable(columns, cs)
       case AllColumns =>
+      case PartitionKeyColumns =>
       // we do not check for column existence yet as it would require fetching schema and a call to C*
       // columns existence will be checked by C* once the RDD gets computed.
     }
@@ -167,6 +168,7 @@ abstract class BaseCassandraRDD[R, P] private[connector](
     val providedColumnNames =
       columnNames match {
         case AllColumns => tableDef.allColumns.map(col => col.columnName: NamedColumnRef).toSeq
+        case PartitionKeyColumns => tableDef.partitionKey.map(col => col.columnName: NamedColumnRef).toSeq
         case SomeColumns(cs@_*) => checkColumnsExistence(cs)
       }
 

@@ -4,6 +4,9 @@ import scala.language.implicitConversions
 
 sealed trait ColumnSelector
 case object AllColumns extends ColumnSelector
+
+case object PartitionKeyColumns extends ColumnSelector
+
 case class SomeColumns(columns: NamedColumnRef*) extends ColumnSelector
 
 object SomeColumns {

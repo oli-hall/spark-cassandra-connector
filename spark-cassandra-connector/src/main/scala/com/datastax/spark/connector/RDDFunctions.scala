@@ -110,11 +110,13 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
    * the entire partition key but clustering columns are optional. If clustering columns are included they must be in
    * an order valid for Cassandra.
    */
-  def joinWithCassandraTable[R](keyspaceName: String, tableName: String)
+  def joinWithCassandraTable[R](keyspaceName: String, tableName: String,
+                                selectedColumns: ColumnSelector = AllColumns,
+                                joinColumns: ColumnSelector = PartitionKeyColumns)
                            (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                             newType: ClassTag[R], rrf: RowReaderFactory[R], ev: ValidRDDType[R],
                             currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraJoinRDD[T, R] = {
-    new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector)
+    new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector, columns = selectedColumns, joinColumns = joinColumns)
   }
 
 
