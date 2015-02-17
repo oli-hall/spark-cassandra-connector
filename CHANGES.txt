@@ -5,6 +5,8 @@
  * Added support for write throughput limiting (SPARKC-57)
  * Added EmptyCassandraRDD (SPARKC-37)
  * Exposed authConf in CassandraConnector
+ * Allowing specification of column to property map (aliases) for reading and writing objects
+   (SPARKC-9)
 
 1.2.0 alpha 2
  * All connection properties can be set on SparkConf / CassandraConnectorConf objects and
