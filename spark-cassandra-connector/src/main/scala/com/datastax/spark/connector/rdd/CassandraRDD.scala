@@ -258,13 +258,7 @@ class CassandraRDD[R] private[connector] (
     }
   }
 
-  private lazy val aliasToColumnName = columnNames match {
-    case SomeColumns(refs @ _*) =>
-      refs.map(ref => (ref.alias.getOrElse(ref.selectedAs), ref.selectedAs)).toMap
-    case _ =>
-      Map.empty[String, String]
-  }
-
+  private lazy val aliasToColumnName = columnNames.toAliasMap
 
   private lazy val rowTransformer = implicitly[RowReaderFactory[R]]
     .rowReader(tableDef, RowReaderOptions(aliasToColumnName = aliasToColumnName))
