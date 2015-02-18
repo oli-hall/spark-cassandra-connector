@@ -105,11 +105,27 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
     new SpannedRDD[U, T](rdd, f)
 
   /**
-   * Uses the data from `RDD` to get data from a Cassandra table. This function is slightly more liberal than
-   * saveToCassandra as you are not required to specify the entire Primary Key. You must specify
-   * the entire partition key but clustering columns are optional. If clustering columns are included they must be in
-   * an order valid for Cassandra.
-   */
+   * Uses the data from `RDD` to join with a Cassandra table without retrieving the entire table.
+   * Any RDD which can be used to saveToCassandra can be used to joinWithCassandra as well as any
+   * RDD which only specifies the partition Key of a Cassandra Table. This method executes single
+   * partition requests against the Cassandra Table and accepts the functional modifiers that a
+   * normal [[com.datastax.spark.connector.rdd.CassandraRDD]] takes.
+   *
+   * By default this method only uses the Partition Key for joining but any combination of columns
+   * which are acceptable to C* can be used in the join. Specify columns using joinColumns as a parameter
+   * or the on() method.
+   *
+   * Example With Prior Repartitioning: {{{
+   * val source = sc.parallelize(keys).map(x => new KVRow(x))
+   * val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
+   * val someCass = repart.joinWithCassandraTable(keyspace, tableName)
+   * }}}
+   *
+   * Example Joining on Clustering Columns: {{{
+   * val source = sc.parallelize(keys).map(x => (x, x * 100))
+   * val someCass = source.joinWithCassandraTable(keyspace, wideTable).on(SomeColumns("key", "group"))
+   * }}}
+   **/
   def joinWithCassandraTable[R](keyspaceName: String, tableName: String,
                                 selectedColumns: ColumnSelector = AllColumns,
                                 joinColumns: ColumnSelector = PartitionKeyColumns)
@@ -121,18 +137,26 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
 
 
   /**
-   * Return a new ShuffledRDD that is made by taking the current RDD and repartitioning it
-   * with the Replica Partitioner.
+   * Repartitions the data (via a shuffle) based upon the replication of the given `keyspaceName` and `tableName`. 
+   * Calling this method before using joinWithCassandraTable will ensure that requests will be coordinator
+   * local. `partitionsPerHost` Controls the number of Spark Partitions that will be created in this repartitioning
+   * event.
+   * The calling RDD must have rows that can be converted into the partition key of the given Cassandra Table.
    **/
-  def repartitionByCassandraReplica(keyspaceName: String, tableName: String, partitionsPerReplicaSet: Int = 10)
+  def repartitionByCassandraReplica(keyspaceName: String, tableName: String, partitionsPerHost: Int = 10)
                                    (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                                     currentType: ClassTag[T], rwf: RowWriterFactory[T]) = {
-    val part = new ReplicaPartitioner(partitionsPerReplicaSet, connector)
+    val part = new ReplicaPartitioner(partitionsPerHost, connector)
     val repart = rdd.keyByCassandraReplica(keyspaceName, tableName).partitionBy(part)
     val output = repart.mapPartitions(_.map(_._2), preservesPartitioning = true)
     output
   }
 
+  /**
+   * Key every row in the RDD by with the IP Adresses of all of the Cassandra nodes which a contain a replica
+   * of the data specified by that row.
+   * The calling RDD must have rows that can be converted into the partition key of the given Cassandra Table.
+   */
   def keyByCassandraReplica(keyspaceName: String, tableName: String)
                            (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
                             currentType: ClassTag[T], rwf: RowWriterFactory[T]): RDD[(Set[InetAddress], T)] = {

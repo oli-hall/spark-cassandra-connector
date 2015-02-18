@@ -12,6 +12,12 @@ case class KVRow(key: Int)
 
 case class FullRow(key: Int, group: Long, value: String)
 
+case class NotWholePartKey(pk1: Int)
+
+case class MissingClustering(pk1: Int, pk2: Int, pk3: Int, cc2: Int)
+
+case class DataCol(pk1: Int, pk2: Int, pk3: Int, d1: Int)
+
 class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with SparkTemplate {
 
   useCassandraConfig("cassandra-default.yaml.template")
@@ -22,6 +28,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   val tableName = "key_value"
   val otherTable = "other_table"
   val wideTable = "wide_table"
+  val manyColsTable = "many_cols_table"
   val keys = 0 to 200
   val total = 0 to 10000
 
@@ -43,6 +50,8 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
         session.execute(s"INSERT INTO $keyspace.$wideTable (key, group, value) VALUES ($value, ${cconeValue}, '${value.toString}')")
       }
     }
+
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$manyColsTable (pk1 int, pk2 int, pk3 int, cc1 int, cc2 int, cc3 int, cc4 int, d1 int, PRIMARY KEY ((pk1, pk2, pk3), cc1, cc2, cc3, cc4))")
   }
 
   def checkLeftSide[T, S](leftSideSource: Array[T], result: Array[(T, S)]) = {
@@ -296,6 +305,24 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
   it should " throw an exception if you try to filter on a column in the Partition key" in {
     intercept[IllegalArgumentException] {
       val someCass = sc.parallelize(keys).map(x => new KVRow(x)).joinWithCassandraTable(keyspace, tableName).where("key = 200")
+    }
+  }
+
+  it should " throw an exception if you don't have all Partition Keys available" in {
+    intercept[IllegalArgumentException] {
+      val someCass = sc.parallelize(keys).map(x => new NotWholePartKey(x)).joinWithCassandraTable(keyspace, manyColsTable)
+    }
+  }
+
+  it should " throw an exception if you try to join on later clustering columns without earlier ones" in {
+    intercept[IllegalArgumentException] {
+      val someCass = sc.parallelize(keys).map(x => new MissingClustering(x, x, x, x)).joinWithCassandraTable(keyspace, manyColsTable).on(SomeColumns("pk1", "pk2", "pk3", "cc2"))
+    }
+  }
+
+  it should " throw an exception if you try to join with a data column" in {
+    intercept[IllegalArgumentException] {
+      val someCass = sc.parallelize(keys).map(x => new DataCol(x, x, x, x)).joinWithCassandraTable(keyspace, manyColsTable).on(SomeColumns("pk1", "pk2", "pk3", "d1"))
     }
   }
 

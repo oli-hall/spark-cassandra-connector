@@ -18,20 +18,6 @@ import scala.reflect.ClassTag
  * An RDD that will do a selecting join between `prev:RDD` and the specified Cassandra Table
  * This will perform individual selects to retrieve the rows from Cassandra and will take
  * advantage of RDD's that have been partitioned with the [[ReplicaPartitioner]]
- * @param prev
- * @param keyspaceName
- * @param tableName
- * @param connector
- * @param columns
- * @param joinColumns
- * @param where
- * @param readConf
- * @param oldTag
- * @param newTag
- * @param rwf
- * @param rrf
- * @tparam O
- * @tparam N
  */
 class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
                                                 keyspaceName: String,
@@ -55,8 +41,44 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
     case AllColumns => throw new IllegalArgumentException("Unable to join against all columns in a Cassandra Table. Only primary key columns allowed")
     case PartitionKeyColumns => tableDef.partitionKey.map(col => col.columnName: NamedColumnRef).toSeq
     case SomeColumns(cs@_*) => {
-      checkColumnsExistence(cs) /* andThen checkValidJoin(cs)*/
+      checkColumnsExistence(cs)
+      checkValidJoin(cs)
     }
+  }
+
+  protected def checkValidJoin(columns: Seq[NamedColumnRef]): Seq[NamedColumnRef] = {
+    val allColumnNames = tableDef.allColumns.map(_.columnName).toSet
+    val regularColumnNames = tableDef.regularColumns.map(_.columnName).toSet
+    val clusteringColumnsNames = tableDef.clusteringColumns.map(_.columnName).toSet
+
+    def checkSingleColumn(column: NamedColumnRef) = {
+      if (regularColumnNames.contains(column.columnName))
+        throw new IllegalArgumentException(s"Can't pushdown join on column $column because it is not part of the PRIMARY KEY")
+      column
+    }
+
+    //Make sure we have all of the clustering indexes between the 0th position and the max requested in the join
+    val chosenClusteringColumns = tableDef.clusteringColumns
+      .filter(tableCol => columns.exists(joinCol => tableCol.columnName == joinCol.columnName))
+    if (chosenClusteringColumns.size != 0) {
+      val chosenClusteringIndexes = chosenClusteringColumns.flatMap(col => col.componentIndex)
+      val maxIndex = chosenClusteringIndexes.max
+      val requiredIndexes = 0 to maxIndex
+      val missingIndexes = requiredIndexes.toSet -- chosenClusteringIndexes.toSet
+      if (missingIndexes.size != 0) {
+        val maxCol = tableDef.clusteringColumns
+          .filter(cc => cc.componentIndex.get == maxIndex)
+          .map(_.columnName).mkString(", ")
+        val otherCols = tableDef.clusteringColumns
+          .filter(cc => missingIndexes.contains(cc.componentIndex.get))
+          .map(_.columnName).mkString(", ")
+        throw new IllegalArgumentException(s"Can't pushdown join on column ${maxCol} without also specifying [ ${otherCols} ]")
+      }
+    }
+
+    //Partition Keys checked when creating RowWriter
+
+    columns.map(checkSingleColumn)
   }
 
   val rowWriter = implicitly[RowWriterFactory[O]].rowWriter(
