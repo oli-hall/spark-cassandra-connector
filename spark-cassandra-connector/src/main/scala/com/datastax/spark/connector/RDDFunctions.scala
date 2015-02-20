@@ -109,7 +109,7 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
    * Any RDD which can be used to saveToCassandra can be used to joinWithCassandra as well as any
    * RDD which only specifies the partition Key of a Cassandra Table. This method executes single
    * partition requests against the Cassandra Table and accepts the functional modifiers that a
-   * normal [[com.datastax.spark.connector.rdd.CassandraRDD]] takes.
+   * normal [[com.datastax.spark.connector.rdd.CassandraTableScanRDD]] takes.
    *
    * By default this method only uses the Partition Key for joining but any combination of columns
    * which are acceptable to C* can be used in the join. Specify columns using joinColumns as a parameter
@@ -129,10 +129,10 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
   def joinWithCassandraTable[R](keyspaceName: String, tableName: String,
                                 selectedColumns: ColumnSelector = AllColumns,
                                 joinColumns: ColumnSelector = PartitionKeyColumns)
-                           (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
-                            newType: ClassTag[R], rrf: RowReaderFactory[R], ev: ValidRDDType[R],
-                            currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraJoinRDD[T, R] = {
-    new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector, columns = selectedColumns, joinColumns = joinColumns)
+                               (implicit connector: CassandraConnector = CassandraConnector(sparkContext.getConf),
+                                newType: ClassTag[R], rrf: RowReaderFactory[R], ev: ValidRDDType[R],
+                                currentType: ClassTag[T], rwf: RowWriterFactory[T]): CassandraJoinRDD[T, R] = {
+    new CassandraJoinRDD[T, R](rdd, keyspaceName, tableName, connector, columnNames = selectedColumns, joinColumns = joinColumns)
   }
 
 

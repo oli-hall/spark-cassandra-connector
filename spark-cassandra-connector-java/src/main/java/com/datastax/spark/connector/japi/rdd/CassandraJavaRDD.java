@@ -3,7 +3,7 @@ package com.datastax.spark.connector.japi.rdd;
 import com.datastax.spark.connector.NamedColumnRef;
 import com.datastax.spark.connector.cql.CassandraConnector;
 import com.datastax.spark.connector.japi.CassandraJavaUtil;
-import com.datastax.spark.connector.rdd.CassandraRDD;
+import com.datastax.spark.connector.rdd.CassandraTableScanRDD;
 import com.datastax.spark.connector.rdd.ReadConf;
 import com.datastax.spark.connector.util.JavaApiHelper;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -15,90 +15,103 @@ import static com.datastax.spark.connector.util.JavaApiHelper.getClassTag;
 import static com.datastax.spark.connector.util.JavaApiHelper.toScalaSeq;
 
 /**
- * A Java API wrapper over {@link com.datastax.spark.connector.rdd.CassandraRDD} to provide Spark Cassandra Connector
+ * A Java API wrapper over {@link com.datastax.spark.connector.rdd.CassandraTableScanRDD} to provide Spark Cassandra Connector
  * functionality in Java.
- *
+ * <p/>
  * <p>The wrapper can be obtained by one of the methods of {@link com.datastax.spark.connector.japi.SparkContextJavaFunctions}
  * or {@link com.datastax.spark.connector.japi.StreamingContextJavaFunctions}.</p>
  */
 @SuppressWarnings("unchecked")
-public class CassandraJavaRDD<R> extends JavaRDD<R> {
+public class CassandraJavaRDD<R> extends JavaRDD<R>
+{
 
-    public CassandraJavaRDD(CassandraRDD<R> rdd, Class<R> clazz) {
+    public CassandraJavaRDD(CassandraTableScanRDD<R> rdd, Class<R> clazz)
+    {
         super(rdd, getClassTag(clazz));
     }
 
-    public CassandraJavaRDD(CassandraRDD<R> rdd, ClassTag<R> classTag) {
+    public CassandraJavaRDD(CassandraTableScanRDD<R> rdd, ClassTag<R> classTag)
+    {
         super(rdd, classTag);
     }
 
     @Override
-    public CassandraRDD<R> rdd() {
-        return (CassandraRDD<R>) super.rdd();
+    public CassandraTableScanRDD<R> rdd()
+    {
+        return (CassandraTableScanRDD<R>) super.rdd();
     }
 
     /**
      * Narrows down the selected set of columns.
-     *
+     * <p/>
      * <p>Use this for better performance, when you don't need all the columns in the result RDD. When called multiple
      * times, it selects the subset of the already selected columns, so after a column was removed by the previous
      * {@code select} call, it is not possible to add it back.</p>
      */
-    public CassandraJavaRDD<R> select(String... columnNames) {
+    public CassandraJavaRDD<R> select(String... columnNames)
+    {
         // explicit type argument is intentional and required here
         //noinspection RedundantTypeArguments
-        CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().select(JavaApiHelper.<NamedColumnRef>toScalaSeq(CassandraJavaUtil.convert(columnNames)));
+        CassandraTableScanRDD<R> newRDD = (CassandraTableScanRDD<R>) rdd()
+                .select(JavaApiHelper.<NamedColumnRef>toScalaSeq(CassandraJavaUtil.convert(columnNames)));
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
 
     /**
      * Narrows down the selected set of columns.
-     *
+     * <p/>
      * <p>Use this for better performance, when you don't need all the columns in the result RDD. When called multiple
      * times, it selects the subset of the already selected columns, so after a column was removed by the previous
      * {@code select} call, it is not possible to add it back.</p>
      */
-    public CassandraJavaRDD<R> select(NamedColumnRef... selectionColumns) {
+    public CassandraJavaRDD<R> select(NamedColumnRef... selectionColumns)
+    {
         // explicit type argument is intentional and required here
         //noinspection RedundantTypeArguments
-        CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().select(JavaApiHelper.<NamedColumnRef>toScalaSeq(selectionColumns));
+        CassandraTableScanRDD<R> newRDD = (CassandraTableScanRDD<R>) rdd()
+                .select(JavaApiHelper.<NamedColumnRef>toScalaSeq(selectionColumns));
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
 
     /**
      * Adds a CQL {@code WHERE} predicate(s) to the query.
-     *
+     * <p/>
      * <p>Useful for leveraging secondary indexes in Cassandra. Implicitly adds an {@code ALLOW FILTERING} clause to the
      * {@code WHERE} clause, however beware that some predicates might be rejected by Cassandra, particularly in cases
      * when they filter on an unindexed, non-clustering column.</p>
      */
-    public CassandraJavaRDD<R> where(String cqlWhereClause, Object... args) {
-        CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().where(cqlWhereClause, toScalaSeq(args));
+    public CassandraJavaRDD<R> where(String cqlWhereClause, Object... args)
+    {
+        CassandraTableScanRDD<R> newRDD = (CassandraTableScanRDD<R>) rdd().where(cqlWhereClause, toScalaSeq(args));
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
 
     /**
      * Returns the names of columns to be selected from the table.
      */
-    public NamedColumnRef[] selectedColumnNames() {
+    public NamedColumnRef[] selectedColumnNames()
+    {
         // explicit type cast is intentional and required here
         //noinspection RedundantCast
-        return (NamedColumnRef[]) rdd().selectedColumnNames().<NamedColumnRef>toArray(getClassTag(NamedColumnRef.class));
+        return (NamedColumnRef[]) rdd().selectedColumnNames()
+                .<NamedColumnRef>toArray(getClassTag(NamedColumnRef.class));
     }
 
     /**
      * Returns a copy of this RDD with connector changed to the specified one.
      */
-    public CassandraJavaRDD<R> withConnector(CassandraConnector connector) {
-        CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().withConnector(connector);
+    public CassandraJavaRDD<R> withConnector(CassandraConnector connector)
+    {
+        CassandraTableScanRDD<R> newRDD = (CassandraTableScanRDD<R>) rdd().withConnector(connector);
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
 
     /**
      * Returns a copy of this RDD with read configuration changed to the specified one.
      */
-    public CassandraJavaRDD<R> withReadConf(ReadConf config) {
-        CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().withReadConf(config);
+    public CassandraJavaRDD<R> withReadConf(ReadConf config)
+    {
+        CassandraTableScanRDD<R> newRDD = (CassandraTableScanRDD<R>) rdd().withReadConf(config);
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
 

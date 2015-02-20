@@ -20,16 +20,16 @@ import scala.reflect.ClassTag
  * advantage of RDD's that have been partitioned with the [[ReplicaPartitioner]]
  */
 class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
-                                                keyspaceName: String,
-                                                tableName: String,
-                                                connector: CassandraConnector,
-                                                columns: ColumnSelector = AllColumns,
-                                                joinColumns: ColumnSelector = PartitionKeyColumns,
-                                                where: CqlWhereClause = CqlWhereClause.empty,
-                                                readConf: ReadConf = ReadConf())
-                                               (implicit oldTag: ClassTag[O], newTag: ClassTag[N],
-                                                @transient rwf: RowWriterFactory[O], @transient rrf: RowReaderFactory[N])
-  extends BaseCassandraRDD[N, (O, N)](prev.sparkContext, connector, keyspaceName, tableName, columns, where, readConf, prev.dependencies) {
+                                                val keyspaceName: String,
+                                                val tableName: String,
+                                                val connector: CassandraConnector,
+                                                val columnNames: ColumnSelector = AllColumns,
+                                                val joinColumns: ColumnSelector = PartitionKeyColumns,
+                                                val where: CqlWhereClause = CqlWhereClause.empty,
+                                                val readConf: ReadConf = ReadConf())
+                                               (implicit oldTag: ClassTag[O], val rct: ClassTag[N],
+                                                @transient val rwf: RowWriterFactory[O], @transient val rtf: RowReaderFactory[N])
+  extends CassandraRDD[(O, N)](prev.sparkContext, prev.dependencies) with CassandraReader[N] {
 
   //Make sure copy operations make new CJRDDs and not CRDDs
   override protected def copy(columnNames: ColumnSelector = columnNames,
