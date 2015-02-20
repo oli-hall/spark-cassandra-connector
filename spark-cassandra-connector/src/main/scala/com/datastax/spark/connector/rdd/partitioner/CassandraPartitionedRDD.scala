@@ -14,13 +14,10 @@ protected[connector] class CassandraPartitionedRDD[T](prev: RDD[T])(implicit ct:
   //We aren't going to change the data
   override def compute(split: Partition, context: TaskContext): Iterator[T] = prev.iterator(split, context)
 
-  //W
   @transient override val partitioner: Option[Partitioner] = prev.partitioner
 
   /**
-   * If this RDD was partitioned using the ReplicaPartitioner then that means we can get preffered locations
-   * for each partition, otherwise we will rely on the previous RDD's partitioning.
-   * @return
+   * This RDD was partitioned using the Replica Partitioner so we can use that to get preferred location data
    */
   override def getPartitions: Array[Partition] = {
     partitioner match {
@@ -32,7 +29,7 @@ protected[connector] class CassandraPartitionedRDD[T](prev: RDD[T])(implicit ct:
   override def getPreferredLocations(split: Partition): Seq[String] = {
     split match {
       case epp: ReplicaPartition =>
-        epp.endpoints.map(_.getHostAddress).toSeq // We were previously partitioned using the ReplicaPartitioner
+        epp.endpoints.map(_.getHostAddress).toSeq
       case other: Partition => throw new IllegalArgumentException("CassandraPartitionedRDD doesn't have Endpointed Partitions. This should be impossible.")
     }
   }
