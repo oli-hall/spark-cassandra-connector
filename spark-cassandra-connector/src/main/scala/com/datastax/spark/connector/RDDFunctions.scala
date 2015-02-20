@@ -4,7 +4,7 @@ package com.datastax.spark.connector
 import java.net.InetAddress
 
 import com.datastax.spark.connector.cql._
-import com.datastax.spark.connector.rdd.partitioner.ReplicaPartitioner
+import com.datastax.spark.connector.rdd.partitioner.{CassandraPartitionedRDD, ReplicaPartitioner}
 import com.datastax.spark.connector.rdd.reader._
 import com.datastax.spark.connector.rdd.{CassandraJoinRDD, SpannedRDD, ValidRDDType}
 import com.datastax.spark.connector.writer._
@@ -149,7 +149,7 @@ class RDDFunctions[T](rdd: RDD[T]) extends WritableToCassandra[T] with Serializa
     val part = new ReplicaPartitioner(partitionsPerHost, connector)
     val repart = rdd.keyByCassandraReplica(keyspaceName, tableName).partitionBy(part)
     val output = repart.mapPartitions(_.map(_._2), preservesPartitioning = true)
-    output
+    new CassandraPartitionedRDD[T](output)
   }
 
   /**

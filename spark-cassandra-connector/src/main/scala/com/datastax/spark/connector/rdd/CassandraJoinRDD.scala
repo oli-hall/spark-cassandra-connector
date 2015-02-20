@@ -4,12 +4,11 @@ import com.datastax.driver.core.Session
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql._
 import com.datastax.spark.connector.metrics.InputMetricsUpdater
-import com.datastax.spark.connector.rdd.partitioner.{ReplicaPartition, ReplicaPartitioner}
 import com.datastax.spark.connector.rdd.reader._
 import com.datastax.spark.connector.util.CountingIterator
 import com.datastax.spark.connector.writer._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Partition, Partitioner, TaskContext}
+import org.apache.spark.{Partition, TaskContext}
 
 import scala.reflect.ClassTag
 
@@ -144,27 +143,5 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
     }
   }
 
-  @transient override val partitioner: Option[Partitioner] = prev.partitioner
-
-  /**
-   * If this RDD was partitioned using the ReplicaPartitioner then that means we can get preffered locations
-   * for each partition, otherwise we will rely on the previous RDD's partitioning.
-   * @return
-   */
-  override def getPartitions: Array[Partition] = {
-    partitioner match {
-      case Some(rp: ReplicaPartitioner) => prev.partitions.map(partition => rp.getEndpointParititon(partition))
-      case _ => prev.partitions
-    }
-  }
-
-  override def getPreferredLocations(split: Partition): Seq[String] = {
-    split match {
-      case epp: ReplicaPartition =>
-        epp.endpoints.map(_.getHostAddress).toSeq // We were previously partitioned using the ReplicaPartitioner
-      case other: Partition => prev.preferredLocations(split) //Fall back to last RDD's preferred spot
-    }
-  }
-
-
+  override protected def getPartitions: Array[Partition] = prev.partitions
 }

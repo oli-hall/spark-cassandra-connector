@@ -127,7 +127,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
     repart.partitions.length should be(conn.hosts.size * 10)
     val someCass = repart.joinWithCassandraTable(keyspace, tableName)
-    someCass.getPartitions.foreach {
+    someCass.partitions.foreach {
       case e: EndpointPartition =>
         conn.hosts should contain(e.endpoints.head)
       case _ =>
@@ -169,7 +169,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
     repart.partitions.length should be(conn.hosts.size * 10)
     val someCass = repart.joinWithCassandraTable(keyspace, tableName)
-    someCass.getPartitions.foreach {
+    someCass.partitions.foreach {
       case e: EndpointPartition =>
         conn.hosts should contain(e.endpoints.head)
       case _ =>
@@ -212,7 +212,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
     repart.partitions.length should be(conn.hosts.size * 10)
     val someCass = repart.joinWithCassandraTable(keyspace, tableName)
-    someCass.getPartitions.foreach {
+    someCass.partitions.foreach {
       case e: EndpointPartition =>
         conn.hosts should contain(e.endpoints.head)
       case _ =>
@@ -280,7 +280,7 @@ class RDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassandra with S
     val repart = source.repartitionByCassandraReplica(keyspace, tableName, 10)
     repart.partitions.length should be(conn.hosts.size * 10)
     val someCass = repart.joinWithCassandraTable(keyspace, tableName)
-    someCass.getPartitions.foreach {
+    someCass.partitions.foreach {
       case e: EndpointPartition =>
         conn.hosts should contain(e.endpoints.head)
       case _ =>
