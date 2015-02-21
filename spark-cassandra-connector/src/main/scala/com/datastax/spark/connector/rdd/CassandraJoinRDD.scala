@@ -16,7 +16,7 @@ import scala.reflect.ClassTag
 /**
  * An RDD that will do a selecting join between `prev:RDD` and the specified Cassandra Table
  * This will perform individual selects to retrieve the rows from Cassandra and will take
- * advantage of RDD's that have been partitioned with the [[ReplicaPartitioner]]
+ * advantage of RDD's that have been partitioned with the [[com.datastax.spark.connector.rdd.partitioner.ReplicaPartitioner]]
  */
 class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
                                                 val keyspaceName: String,

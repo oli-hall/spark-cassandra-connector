@@ -25,61 +25,24 @@ import scala.reflect.ClassTag
 
 abstract class CassandraRDD[R](_sc: SparkContext, dep: Seq[Dependency[_]])(implicit ct: ClassTag[R]) extends RDD[R](_sc, dep) {
 
-/** RDD representing a Cassandra table.
-  * This class is the main entry point for analyzing data in Cassandra database with Spark.
-  * Obtain objects of this class by calling [[com.datastax.spark.connector.SparkContextFunctions#cassandraTable cassandraTable]].
-  *
-  * Configuration properties should be passed in the `SparkConf` configuration of `SparkContext`.
-  * `CassandraRDD` needs to open connection to Cassandra, therefore it requires appropriate connection property values
-  * to be present in `SparkConf`. For the list of required and available properties, see
-  * [[com.datastax.spark.connector.cql.CassandraConnector CassandraConnector]].
-  *
-  * `CassandraRDD` divides the dataset into smaller partitions, processed locally on every cluster node.
-  * A data partition consists of one or more contiguous token ranges.
-  * To reduce the number of roundtrips to Cassandra, every partition is fetched in batches. The following
-  * properties control the number of partitions and the fetch size:
-  *
-  * - spark.cassandra.input.split.size:        approx number of Cassandra partitions in a Spark partition, default 100000
-  * - spark.cassandra.input.page.row.size:     number of CQL rows fetched per roundtrip, default 1000
-  *
-  * A `CassandraRDD` object gets serialized and sent to every Spark executor.
-  *
-  * By default, reads are performed at ConsistencyLevel.LOCAL_ONE in order to leverage data-locality and minimize network traffic.
-  * This read consistency level is controlled by the following property:
-  *
-  * - spark.cassandra.input.consistency.level: consistency level for RDD reads, string matching the ConsistencyLevel enum name.
-  *
-  * If a Cassandra node fails or gets overloaded during read, queries are retried to a different node.
-  */
-class CassandraRDD[R] private[connector] (
-    @transient sc: SparkContext,
-    val connector: CassandraConnector,
-    val keyspaceName: String,
-    val tableName: String,
-    val columnNames: ColumnSelector = AllColumns,
-    val where: CqlWhereClause = CqlWhereClause.empty,
-    val readConf: ReadConf = ReadConf(),
-    val dependecyList : Seq[Dependency[_]] = Seq.empty)(
-  implicit
-    ct : ClassTag[R], @transient rtf: RowReaderFactory[R])
-  extends RDD[R](sc, dependecyList) with Logging {
+  /** Allows to set custom read configuration, e.g. consistency level or fetch size. */
+  def withReadConf(readConf: ReadConf) = {
+    copy(readConf = readConf)
+  }
 
+  protected def columnNames: ColumnSelector
+  protected def where: CqlWhereClause
+  protected def readConf: ReadConf
+  protected def connector: CassandraConnector
 
-  protected def fetchSize = readConf.fetchSize
-  private def splitSize = readConf.splitSize
-  protected def consistencyLevel = readConf.consistencyLevel
 
   protected def copy(columnNames: ColumnSelector = columnNames,
-                   where: CqlWhereClause = where,
-                   readConf: ReadConf = readConf,
-                   empty: Boolean = empty,
-                   connector: CassandraConnector = connector): CassandraRDD[R] = {
-    require(sc != null,
-      "RDD transformation requires a non-null SparkContext. Unfortunately SparkContext in this CassandraRDD is null. " +
-      "This can happen after CassandraRDD has been deserialized. SparkContext is not Serializable, therefore it deserializes to null." +
-      "RDD transformations are not allowed inside lambdas used in other RDD transformations.")
-    new CassandraRDD[R](sc, connector, keyspaceName, tableName, columnNames, where, readConf).asInstanceOf[this.type]
-  }
+                     where: CqlWhereClause = where,
+                     readConf: ReadConf = readConf, connector: CassandraConnector = connector): CassandraRDD[R]
+
+  //convertTo must be implmented for classes which wish to support `.as`
+  protected def convertTo[B](implicit ct: ClassTag[B], rrf: RowReaderFactory[B]): CassandraRDD[B] =
+    throw new NotImplementedError(s"convertTo not implemented for this class")
 
   /** Maps each row into object of a different type using provided function taking column value(s) as argument(s).
     * Can be used to convert each row to a tuple or a case class object:
@@ -92,69 +55,69 @@ class CassandraRDD[R] private[connector] (
     * }}} */
   def as[B: ClassTag, A0: TypeConverter](f: A0 => B): CassandraRDD[B] = {
     implicit val ft = new FunctionBasedRowReader1(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter](f: (A0, A1) => B) = {
     implicit val ft = new FunctionBasedRowReader2(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter](f: (A0, A1, A2) => B) = {
     implicit val ft = new FunctionBasedRowReader3(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter,
   A3: TypeConverter](f: (A0, A1, A2, A3) => B) = {
     implicit val ft = new FunctionBasedRowReader4(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
   A4: TypeConverter](f: (A0, A1, A2, A3, A4) => B) = {
     implicit val ft = new FunctionBasedRowReader5(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
   A4: TypeConverter, A5: TypeConverter](f: (A0, A1, A2, A3, A4, A5) => B) = {
     implicit val ft = new FunctionBasedRowReader6(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
   A4: TypeConverter, A5: TypeConverter, A6: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6) => B) = {
     implicit val ft = new FunctionBasedRowReader7(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
   A4: TypeConverter, A5: TypeConverter, A6: TypeConverter,
   A7: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7) => B) = {
     implicit val ft = new FunctionBasedRowReader8(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
   A4: TypeConverter, A5: TypeConverter, A6: TypeConverter, A7: TypeConverter,
   A8: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7, A8) => B) = {
     implicit val ft = new FunctionBasedRowReader9(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
   A4: TypeConverter, A5: TypeConverter, A6: TypeConverter, A7: TypeConverter,
   A8: TypeConverter, A9: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9) => B) = {
     implicit val ft = new FunctionBasedRowReader10(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
   A4: TypeConverter, A5: TypeConverter, A6: TypeConverter, A7: TypeConverter, A8: TypeConverter,
   A9: TypeConverter, A10: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10) => B) = {
     implicit val ft = new FunctionBasedRowReader11(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
   def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
@@ -162,99 +125,39 @@ class CassandraRDD[R] private[connector] (
   A9: TypeConverter, A10: TypeConverter, A11: TypeConverter](
                                                               f: (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11) => B) = {
     implicit val ft = new FunctionBasedRowReader12(f)
-    new CassandraRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
+    convertTo[B]
   }
 
-
-  override def getPartitions: Array[Partition] = {
-    if (empty) {
-      Array.empty
-    } else {
-      verify // let's fail fast
-      val tf = TokenFactory.forCassandraPartitioner(cassandraPartitionerClassName)
-      val partitions = new CassandraRDDPartitioner(connector, tableDef, splitSize)(tf).partitions(where)
-      logDebug(s"Created total ${partitions.size} partitions for $keyspaceName.$tableName.")
-      logTrace("Partitions: \n" + partitions.mkString("\n"))
-      partitions
-    }
+  /** Returns a copy of this Cassandra RDD with specified connector */
+  def withConnector(connector: CassandraConnector): CassandraRDD[R] = {
+    copy(connector = connector)
   }
 
-  override def getPreferredLocations(split: Partition) =
-    split.asInstanceOf[CassandraPartition]
-      .endpoints.map(_.getHostName).toSeq
-
-  private def tokenRangeToCqlQuery(range: CqlTokenRange): (String, Seq[Any]) = {
-    val columns = selectedColumnNames.map(_.cql).mkString(", ")
-    val filter = (range.cql +: where.predicates).filter(_.nonEmpty).mkString(" AND ") + " ALLOW FILTERING"
-    val quotedKeyspaceName = quote(keyspaceName)
-    val quotedTableName = quote(tableName)
-    (s"SELECT $columns FROM $quotedKeyspaceName.$quotedTableName WHERE $filter", range.values ++ where.values)
+  /** Adds a CQL `WHERE` predicate(s) to the query.
+    * Useful for leveraging secondary indexes in Cassandra.
+    * Implicitly adds an `ALLOW FILTERING` clause to the WHERE clause, however beware that some predicates
+    * might be rejected by Cassandra, particularly in cases when they filter on an unindexed, non-clustering column. */
+  def where(cql: String, values: Any*): CassandraRDD[R] = {
+    copy(where = where and CqlWhereClause(Seq(cql), values))
   }
 
-  private def createStatement(session: Session, cql: String, values: Any*): Statement = {
-    try {
-      implicit val pv = protocolVersion(session)
-      val stmt = session.prepare(cql)
-      stmt.setConsistencyLevel(consistencyLevel)
-      val converters = stmt.getVariables
-        .map(v => ColumnType.converterToCassandra(v.getType))
-        .toArray
-      val convertedValues =
-        for ((value, converter) <- values zip converters)
-        yield converter.convert(value)
-      val bstm = stmt.bind(convertedValues: _*)
-      bstm.setFetchSize(fetchSize)
-      bstm
-    }
-    catch {
-      case t: Throwable =>
-        throw new IOException(s"Exception during preparation of $cql: ${t.getMessage}", t)
-    }
+  /** Narrows down the selected set of columns.
+    * Use this for better performance, when you don't need all the columns in the result RDD.
+    * When called multiple times, it selects the subset of the already selected columns, so
+    * after a column was removed by the previous `select` call, it is not possible to
+    * add it back.
+    *
+    * The selected columns are [[NamedColumnRef]] instances. This type allows to specify columns for
+    * straightforward retrieval and to read TTL or write time of regular columns as well. Implicit
+    * conversions included in [[com.datastax.spark.connector]] package make it possible to provide
+    * just column names (which is also backward compatible) and optional add `.ttl` or `.writeTime`
+    * suffix in order to create an appropriate [[NamedColumnRef]] instance.
+    */
+  def select(columns: NamedColumnRef*): CassandraRDD[R] = {
+    copy(columnNames = SomeColumns(narrowColumnSelection(columns): _*))
   }
 
-  private def fetchTokenRange(session: Session, range: CqlTokenRange, inputMetricsUpdater: InputMetricsUpdater): Iterator[R] = {
-    val (cql, values) = tokenRangeToCqlQuery(range)
-    logDebug(s"Fetching data for range ${range.cql} with $cql with params ${values.mkString("[", ",", "]")}")
-    val stmt = createStatement(session, cql, values: _*)
-    val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
-
-    try {
-      implicit val pv = protocolVersion(session)
-      val tc = inputMetricsUpdater.resultSetFetchTimer.map(_.time())
-      val rs = session.execute(stmt)
-      tc.map(_.stop())
-      val iterator = new PrefetchingResultSetIterator(rs, fetchSize)
-      val iteratorWithMetrics = iterator.map(inputMetricsUpdater.updateMetrics)
-      val result = iteratorWithMetrics.map(rowTransformer.read(_, columnNamesArray))
-      logDebug(s"Row iterator for range ${range.cql} obtained successfully.")
-      result
-    } catch {
-      case t: Throwable =>
-        throw new IOException(s"Exception during execution of $cql: ${t.getMessage}", t)
-    }
-  }
-
-  override def compute(split: Partition, context: TaskContext): Iterator[R] = {
-    val session = connector.openSession()
-    val partition = split.asInstanceOf[CassandraPartition]
-    val tokenRanges = partition.tokenRanges
-    val metricsUpdater = InputMetricsUpdater(context, 20)
-
-    // Iterator flatMap trick flattens the iterator-of-iterator structure into a single iterator.
-    // flatMap on iterator is lazy, therefore a query for the next token range is executed not earlier
-    // than all of the rows returned by the previous query have been consumed
-    val rowIterator = tokenRanges.iterator.flatMap(
-      fetchTokenRange(session, _, metricsUpdater))
-    val countingIterator = new CountingIterator(rowIterator)
-
-    context.addTaskCompletionListener { (context) =>
-      val duration = metricsUpdater.finish() / 1000000000d
-      logDebug(f"Fetched ${countingIterator.count} rows from $keyspaceName.$tableName for partition ${partition.index} in $duration%.3f s.")
-      session.close()
-    }
-    countingIterator
-  }
-  def narrowColumnSelection(columns: Seq[NamedColumnRef]): Seq[NamedColumnRef] //TODO extract this out to READER Trait
+  protected def narrowColumnSelection(columns: Seq[NamedColumnRef]): Seq[NamedColumnRef]
 }
 
 

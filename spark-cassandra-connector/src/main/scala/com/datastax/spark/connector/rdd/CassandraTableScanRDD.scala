@@ -9,9 +9,9 @@ import com.datastax.spark.connector.metrics.InputMetricsUpdater
 import com.datastax.spark.connector.rdd.partitioner.dht.TokenFactory
 import com.datastax.spark.connector.rdd.partitioner.{CassandraPartition, CassandraRDDPartitioner, CqlTokenRange}
 import com.datastax.spark.connector.rdd.reader._
-import com.datastax.spark.connector.types.{ColumnType, TypeConverter}
+import com.datastax.spark.connector.types.ColumnType
 import com.datastax.spark.connector.util.CountingIterator
-import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 import scala.collection.JavaConversions._
 import scala.language.existentials
@@ -51,10 +51,9 @@ class CassandraTableScanRDD[R] private[connector](
                                                    val tableName: String,
                                                    val columnNames: ColumnSelector = AllColumns,
                                                    val where: CqlWhereClause = CqlWhereClause.empty,
-                                                   val readConf: ReadConf = ReadConf(),
-                                                   dependecyList: Seq[Dependency[_]] = Seq.empty)(
-                                                   implicit
-                                                   val rct: ClassTag[R], @transient val rtf: RowReaderFactory[R])
+                                                   val readConf: ReadConf = ReadConf())
+                                                 (implicit val rct: ClassTag[R],
+                                                  @transient val rtf: RowReaderFactory[R])
   extends CassandraRDD[R](sc, Seq.empty) with CassandraReader[R] {
 
   override protected def copy(columnNames: ColumnSelector = columnNames,
@@ -67,87 +66,7 @@ class CassandraTableScanRDD[R] private[connector](
     new CassandraTableScanRDD[R](sc, connector, keyspaceName, tableName, columnNames, where, readConf).asInstanceOf[this.type]
   }
 
-  /** Maps each row into object of a different type using provided function taking column value(s) as argument(s).
-    * Can be used to convert each row to a tuple or a case class object:
-    * {{{
-    * sc.cassandraTable("ks", "table").select("column1").as((s: String) => s)                 // yields CassandraRDD[String]
-    * sc.cassandraTable("ks", "table").select("column1", "column2").as((_: String, _: Long))  // yields CassandraRDD[(String, Long)]
-    *
-    * case class MyRow(key: String, value: Long)
-    * sc.cassandraTable("ks", "table").select("column1", "column2").as(MyRow)                 // yields CassandraRDD[MyRow]
-    * }}} */
-  def as[B: ClassTag, A0: TypeConverter](f: A0 => B): CassandraTableScanRDD[B] = {
-    implicit val ft = new FunctionBasedRowReader1(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter](f: (A0, A1) => B) = {
-    implicit val ft = new FunctionBasedRowReader2(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter](f: (A0, A1, A2) => B) = {
-    implicit val ft = new FunctionBasedRowReader3(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter,
-  A3: TypeConverter](f: (A0, A1, A2, A3) => B) = {
-    implicit val ft = new FunctionBasedRowReader4(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter](f: (A0, A1, A2, A3, A4) => B) = {
-    implicit val ft = new FunctionBasedRowReader5(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter, A5: TypeConverter](f: (A0, A1, A2, A3, A4, A5) => B) = {
-    implicit val ft = new FunctionBasedRowReader6(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter, A5: TypeConverter, A6: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6) => B) = {
-    implicit val ft = new FunctionBasedRowReader7(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter, A5: TypeConverter, A6: TypeConverter,
-  A7: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7) => B) = {
-    implicit val ft = new FunctionBasedRowReader8(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter, A5: TypeConverter, A6: TypeConverter, A7: TypeConverter,
-  A8: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7, A8) => B) = {
-    implicit val ft = new FunctionBasedRowReader9(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter, A5: TypeConverter, A6: TypeConverter, A7: TypeConverter,
-  A8: TypeConverter, A9: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9) => B) = {
-    implicit val ft = new FunctionBasedRowReader10(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter, A5: TypeConverter, A6: TypeConverter, A7: TypeConverter, A8: TypeConverter,
-  A9: TypeConverter, A10: TypeConverter](f: (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10) => B) = {
-    implicit val ft = new FunctionBasedRowReader11(f)
-    new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
-  }
-
-  def as[B: ClassTag, A0: TypeConverter, A1: TypeConverter, A2: TypeConverter, A3: TypeConverter,
-  A4: TypeConverter, A5: TypeConverter, A6: TypeConverter, A7: TypeConverter, A8: TypeConverter,
-  A9: TypeConverter, A10: TypeConverter, A11: TypeConverter](
-                                                              f: (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11) => B) = {
-    implicit val ft = new FunctionBasedRowReader12(f)
+  override protected def convertTo[B](implicit ct: ClassTag[B], rrf: RowReaderFactory[B]): CassandraRDD[B] = {
     new CassandraTableScanRDD[B](sc, connector, keyspaceName, tableName, columnNames, where, readConf)
   }
 

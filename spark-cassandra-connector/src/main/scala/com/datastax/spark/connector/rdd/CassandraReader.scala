@@ -28,6 +28,7 @@ trait CassandraReader[R] {
 
   protected def consistencyLevel = readConf.consistencyLevel
 
+
   /**
    * rtf:RowReaderFactory and rct should be included as implict parameters in the constructor
    * of the class implementing this trait see [[CassandraTableScanRDD]]
