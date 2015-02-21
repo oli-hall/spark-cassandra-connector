@@ -158,6 +158,9 @@ abstract class CassandraRDD[R](_sc: SparkContext, dep: Seq[Dependency[_]])(impli
   }
 
   protected def narrowColumnSelection(columns: Seq[NamedColumnRef]): Seq[NamedColumnRef]
+
+  // Needed to be public for JavaAPI
+  val selectedColumnNames: Seq[NamedColumnRef]
 }
 
 
