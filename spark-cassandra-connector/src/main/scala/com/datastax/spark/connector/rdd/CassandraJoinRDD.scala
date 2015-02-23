@@ -48,7 +48,8 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
   protected def checkValidJoin(columns: Seq[NamedColumnRef]): Seq[NamedColumnRef] = {
     val allColumnNames = tableDef.allColumns.map(_.columnName).toSet
     val regularColumnNames = tableDef.regularColumns.map(_.columnName).toSet
-    val clusteringColumnsNames = tableDef.clusteringColumns.map(_.columnName).toSet
+    val partitionKeyColumnNames = tableDef.partitionKey.map(_.columnName).toSet
+    val joinColumnNames = columns.map(_.columnName).toSet
 
     def checkSingleColumn(column: NamedColumnRef) = {
       if (regularColumnNames.contains(column.columnName))
@@ -74,16 +75,16 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
         throw new IllegalArgumentException(s"Can't pushdown join on column ${maxCol} without also specifying [ ${otherCols} ]")
       }
     }
-
-    //Partition Keys checked when creating RowWriter
-
+    val missingPartitionKeys = partitionKeyColumnNames -- joinColumnNames
+    if (missingPartitionKeys.size != 0) {
+      throw new IllegalArgumentException(s"Can't join without the full partition key. Missing: [ ${missingPartitionKeys} ]")
+    }
     columns.map(checkSingleColumn)
   }
 
   val rowWriter = implicitly[RowWriterFactory[O]].rowWriter(
     tableDef,
-    joinColumnNames.map(_.columnName),
-    checkColumns = CheckLevel.CheckPartitionOnly)
+    joinColumnNames.map(_.columnName))
 
   def on(joinColumns: ColumnSelector): CassandraJoinRDD[O, N] = {
     new CassandraJoinRDD[O, N](prev, keyspaceName, tableName, connector, columnNames, joinColumns, where, readConf).asInstanceOf[this.type]

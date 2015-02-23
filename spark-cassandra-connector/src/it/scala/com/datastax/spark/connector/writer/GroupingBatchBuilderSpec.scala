@@ -22,7 +22,7 @@ class GroupingBatchBuilderSpec extends FlatSpec with Matchers with BeforeAndAfte
 
   val protocolVersion = conn.withClusterDo(_.getConfiguration.getProtocolOptions.getProtocolVersionEnum)
   val schema = Schema.fromCassandra(conn, Some("batch_maker_test"), Some("tab"))
-  val rowWriter = RowWriterFactory.defaultRowWriterFactory[(Int, String)].rowWriter(schema.tables.head, Seq("id", "value"), CheckLevel.CheckAll)
+  val rowWriter = RowWriterFactory.defaultRowWriterFactory[(Int, String)].rowWriter(schema.tables.head, Seq("id", "value"))
   val rkg = new RoutingKeyGenerator(schema.tables.head, Seq("id", "value"))
 
   def makeBatchBuilder(session: Session): (BoundStatement => Any, BatchSize, Int, Iterator[(Int, String)]) => GroupingBatchBuilder[(Int, String)] = {
@@ -33,7 +33,9 @@ class GroupingBatchBuilderSpec extends FlatSpec with Matchers with BeforeAndAfte
   }
 
   def staticBatchKeyGen(bs: BoundStatement): Int = 0
+
   def dynamicBatchKeyGen(bs: BoundStatement): Int = bs.getInt(0) % 2
+
   def dynamicBatchKeyGen5(bs: BoundStatement): Int = bs.getInt(0) % 5
 
   "GroupingBatchBuilder in fixed batch key mode" should "make bound statements when batch size is specified as RowsInBatch(1)" in {
@@ -270,7 +272,7 @@ class GroupingBatchBuilderSpec extends FlatSpec with Matchers with BeforeAndAfte
       val size = 10000
       val data = (1 to size).map(x => (Random.nextInt().abs, Random.nextString(Random.nextInt(20))))
       val statements = bm(dynamicBatchKeyGen5, RowsInBatch(10), 4, data.toIterator).toList
-      val batches = statements.collect { case bs: BatchStatement => bs.size() }
+      val batches = statements.collect { case bs: BatchStatement => bs.size()}
       statements.flatMap {
         case s: BoundStatement => List(s)
         case s: BatchStatement =>

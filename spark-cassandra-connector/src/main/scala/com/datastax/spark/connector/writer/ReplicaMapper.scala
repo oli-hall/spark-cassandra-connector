@@ -12,9 +12,9 @@ import scala.collection.JavaConversions._
 import scala.collection._
 
 class ReplicaMapper[T] private(
-                                 connector: CassandraConnector,
-                                 tableDef: TableDef,
-                                 rowWriter: RowWriter[T]) extends Serializable with Logging {
+                                connector: CassandraConnector,
+                                tableDef: TableDef,
+                                rowWriter: RowWriter[T]) extends Serializable with Logging {
 
   val keyspaceName = tableDef.keyspaceName
   val tableName = tableDef.tableName
@@ -55,17 +55,17 @@ class ReplicaMapper[T] private(
    * @return an Iterator over the same data keyed by the replica's ip addresses
    */
   def keyByReplicas(data: Iterator[T]): Iterator[(scala.collection.immutable.Set[InetAddress], T)] = {
-    connector.withClusterDo{ cluster =>
-    connector.withSessionDo { session =>
-      val stmt = prepareDummyStatement(session)
-      val routingKeyGenerator = new RoutingKeyGenerator(tableDef, columnNames)
-      val boundStmtBuilder = new BoundStatementBuilder(rowWriter, stmt, protocolVersion)
-      data.map { row =>
-        val hosts = cluster.getMetadata
-          .getReplicas(keyspaceName, routingKeyGenerator.apply(boundStmtBuilder.bind(row)))
-          .map(_.getAddress)
-          .toSet[InetAddress]
-        (hosts , row)
+    connector.withClusterDo { cluster =>
+      connector.withSessionDo { session =>
+        val stmt = prepareDummyStatement(session)
+        val routingKeyGenerator = new RoutingKeyGenerator(tableDef, columnNames)
+        val boundStmtBuilder = new BoundStatementBuilder(rowWriter, stmt, protocolVersion)
+        data.map { row =>
+          val hosts = cluster.getMetadata
+            .getReplicas(keyspaceName, routingKeyGenerator.apply(boundStmtBuilder.bind(row)))
+            .map(_.getAddress)
+            .toSet[InetAddress]
+          (hosts, row)
         }
       }
     }
@@ -87,8 +87,7 @@ object ReplicaMapper {
     val selectedColumns = tableDef.partitionKey.map(_.columnName).toSeq
     val rowWriter = implicitly[RowWriterFactory[T]].rowWriter(
       tableDef,
-      selectedColumns,
-      checkColumns = CheckLevel.CheckPartitionOnly)
+      selectedColumns)
     new ReplicaMapper[T](connector, tableDef, rowWriter)
   }
 
