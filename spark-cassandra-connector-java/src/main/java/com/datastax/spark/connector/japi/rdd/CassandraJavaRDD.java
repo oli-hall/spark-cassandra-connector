@@ -48,8 +48,7 @@ public class CassandraJavaRDD<R> extends JavaRDD<R>
      * times, it selects the subset of the already selected columns, so after a column was removed by the previous
      * {@code select} call, it is not possible to add it back.</p>
      */
-    public CassandraJavaRDD<R> select(String... columnNames)
-    {
+    public CassandraJavaRDD<R> select(String... columnNames) {
         // explicit type argument is intentional and required here
         //noinspection RedundantTypeArguments
         CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd()
@@ -64,8 +63,7 @@ public class CassandraJavaRDD<R> extends JavaRDD<R>
      * times, it selects the subset of the already selected columns, so after a column was removed by the previous
      * {@code select} call, it is not possible to add it back.</p>
      */
-    public CassandraJavaRDD<R> select(NamedColumnRef... selectionColumns)
-    {
+    public CassandraJavaRDD<R> select(NamedColumnRef... selectionColumns) {
         // explicit type argument is intentional and required here
         //noinspection RedundantTypeArguments
         CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd()
@@ -80,8 +78,7 @@ public class CassandraJavaRDD<R> extends JavaRDD<R>
      * {@code WHERE} clause, however beware that some predicates might be rejected by Cassandra, particularly in cases
      * when they filter on an unindexed, non-clustering column.</p>
      */
-    public CassandraJavaRDD<R> where(String cqlWhereClause, Object... args)
-    {
+    public CassandraJavaRDD<R> where(String cqlWhereClause, Object... args) {
         CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().where(cqlWhereClause, toScalaSeq(args));
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
@@ -89,8 +86,7 @@ public class CassandraJavaRDD<R> extends JavaRDD<R>
     /**
      * Returns the names of columns to be selected from the table.
      */
-    public NamedColumnRef[] selectedColumnNames()
-    {
+    public NamedColumnRef[] selectedColumnNames() {
         // explicit type cast is intentional and required here
         //noinspection RedundantCast
         return (NamedColumnRef[]) rdd().selectedColumnNames()
@@ -100,8 +96,7 @@ public class CassandraJavaRDD<R> extends JavaRDD<R>
     /**
      * Returns a copy of this RDD with connector changed to the specified one.
      */
-    public CassandraJavaRDD<R> withConnector(CassandraConnector connector)
-    {
+    public CassandraJavaRDD<R> withConnector(CassandraConnector connector) {
         CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().withConnector(connector);
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
@@ -109,8 +104,7 @@ public class CassandraJavaRDD<R> extends JavaRDD<R>
     /**
      * Returns a copy of this RDD with read configuration changed to the specified one.
      */
-    public CassandraJavaRDD<R> withReadConf(ReadConf config)
-    {
+    public CassandraJavaRDD<R> withReadConf(ReadConf config) {
         CassandraRDD<R> newRDD = (CassandraRDD<R>) rdd().withReadConf(config);
         return new CassandraJavaRDD<>(newRDD, classTag());
     }
