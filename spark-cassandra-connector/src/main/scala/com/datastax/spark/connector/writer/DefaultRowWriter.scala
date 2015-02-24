@@ -46,7 +46,7 @@ class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[S
 
   private def columnNameByRef(columnRef: ColumnRef): Option[String] = {
     columnRef match {
-      case ColumnName(name) if selectedColumnsSet.contains(name) => Some(name)
+      case ColumnName(name, _) if selectedColumnsSet.contains(name) => Some(name)
       case ColumnIndex(index) if index < selectedColumns.size => Some(selectedColumnsIndexed(index))
       case _ => None
     }

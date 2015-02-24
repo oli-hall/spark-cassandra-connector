@@ -70,6 +70,17 @@ with ShouldMatchers with SharedEmbeddedCassandra with SparkTemplate {
     assert(beans.exists(bean ⇒ bean.getValue == null && bean.getKey == 3))
   }
 
+  it should "allow to read data as Java beans with custom mapping defined by aliases" in {
+    val beans = javaFunctions(sc)
+      .cassandraTable("java_api_test", "test_table", mapRowTo(classOf[SampleWeirdJavaBean]))
+      .select(plain("key").as("devil"), plain("value").as("cat"))
+      .collect()
+    assert(beans.size == 3)
+    assert(beans.exists(bean ⇒ bean.getCat == "one" && bean.getDevil == 1))
+    assert(beans.exists(bean ⇒ bean.getCat == "two" && bean.getDevil == 2))
+    assert(beans.exists(bean ⇒ bean.getCat == null && bean.getDevil == 3))
+  }
+
   it should "allow to read data as Java beans (with multiple constructors)" in {
     val beans = javaFunctions(sc).cassandraTable("java_api_test", "test_table", mapRowTo(classOf[SampleJavaBeanWithMultipleCtors])).collect()
     assert(beans.size == 3)

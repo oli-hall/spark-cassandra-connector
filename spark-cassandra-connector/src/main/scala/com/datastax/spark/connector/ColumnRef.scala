@@ -17,6 +17,9 @@ sealed trait NamedColumnRef extends ColumnRef {
   /** Returns a name of the selection as it is seen in the result set. Most likely this is going to be
     * used when providing custom column name to field name mapping. */
   def selectedAs: String
+
+  /** Returns an alias for the referenced column */
+  def alias: Option[String]
 }
 
 object NamedColumnRef {
@@ -24,23 +27,29 @@ object NamedColumnRef {
 }
 
 /** References a column by name. */
-case class ColumnName(columnName: String) extends NamedColumnRef {
+case class ColumnName(columnName: String, alias: Option[String] = None) extends NamedColumnRef {
   val cql = s""""$columnName""""
   val selectedAs = columnName
 
+  def as(alias: String) = copy(alias = Some(alias))
+
   override def toString: String = selectedAs
 }
 
-case class TTL(columnName: String) extends NamedColumnRef {
+case class TTL(columnName: String, alias: Option[String] = None) extends NamedColumnRef {
   val cql = s"""TTL("$columnName")"""
   val selectedAs = s"ttl($columnName)"
 
+  def as(alias: String) = copy(alias = Some(alias))
+
   override def toString: String = selectedAs
 }
 
-case class WriteTime(columnName: String) extends NamedColumnRef {
+case class WriteTime(columnName: String, alias: Option[String] = None) extends NamedColumnRef {
   val cql = s"""WRITETIME("$columnName")"""
   val selectedAs = s"writetime($columnName)"
+
+  def as(alias: String) = copy(alias = Some(alias))
 
   override def toString: String = selectedAs
 }

@@ -454,7 +454,7 @@ public class CassandraJavaUtil {
     public static ColumnSelector someColumns(String... columnNames) {
         NamedColumnRef[] columnsSelection = new NamedColumnRef[columnNames.length];
         for (int i = 0; i < columnNames.length; i++) {
-            columnsSelection[i] = ColumnName$.MODULE$.apply(columnNames[i]);
+            columnsSelection[i] = ColumnName$.MODULE$.apply(columnNames[i], Option.<String>empty());
         }
 
         return SomeColumns$.MODULE$.apply(JAPI.seq(columnsSelection));
@@ -463,22 +463,22 @@ public class CassandraJavaUtil {
     public static NamedColumnRef[] convert(String... columnNames) {
         NamedColumnRef[] columnsSelection = new NamedColumnRef[columnNames.length];
         for (int i = 0; i < columnNames.length; i++) {
-            columnsSelection[i] = ColumnName$.MODULE$.apply(columnNames[i]);
+            columnsSelection[i] = ColumnName$.MODULE$.apply(columnNames[i], Option.<String>empty());
         }
 
         return columnsSelection;
     }
 
     public static ColumnName plain(String columnName) {
-        return new ColumnName(columnName);
+        return new ColumnName(columnName, Option.<String>empty());
     }
 
     public static TTL ttl(String columnName) {
-        return new TTL(columnName);
+        return new TTL(columnName, Option.<String>empty());
     }
 
     public static WriteTime writeTime(String columnName) {
-        return new WriteTime(columnName);
+        return new WriteTime(columnName, Option.<String>empty());
     }
 
     // -------------------------------------------------------------------------

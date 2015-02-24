@@ -117,11 +117,11 @@ class CassandraRDD[R] private[connector] (
   /** Throws IllegalArgumentException if columns sequence contains unavailable columns */
   private def checkColumnsAvailable(columns: Seq[NamedColumnRef], availableColumns: Seq[NamedColumnRef]) {
     val availableColumnsSet = availableColumns.collect {
-      case ColumnName(columnName) => columnName
+      case ColumnName(columnName, _) => columnName
     }.toSet
 
     val notFound = columns.collectFirst {
-      case ColumnName(columnName) if !availableColumnsSet.contains(columnName) => columnName
+      case ColumnName(columnName, _) if !availableColumnsSet.contains(columnName) => columnName
     }
 
     if (notFound.isDefined)
@@ -258,7 +258,16 @@ class CassandraRDD[R] private[connector] (
     }
   }
 
-  private lazy val rowTransformer = implicitly[RowReaderFactory[R]].rowReader(tableDef)
+  private lazy val aliasToColumnName = columnNames match {
+    case SomeColumns(refs @ _*) =>
+      refs.map(ref => (ref.alias.getOrElse(ref.selectedAs), ref.selectedAs)).toMap
+    case _ =>
+      Map.empty[String, String]
+  }
+
+
+  private lazy val rowTransformer = implicitly[RowReaderFactory[R]]
+    .rowReader(tableDef, RowReaderOptions(aliasToColumnName = aliasToColumnName))
 
   private def checkColumnsExistence(columns: Seq[NamedColumnRef]): Seq[NamedColumnRef] = {
     val allColumnNames = tableDef.allColumns.map(_.columnName).toSet
@@ -269,14 +278,14 @@ class CassandraRDD[R] private[connector] (
         throw new IOException(s"Column $column not found in table $keyspaceName.$tableName")
 
       column match {
-        case ColumnName(_) =>
+        case ColumnName(_, _) =>
 
-        case TTL(columnName) =>
+        case TTL(columnName, _) =>
           if (!regularColumnNames.contains(columnName))
             throw new IOException(s"TTL can be obtained only for regular columns, " +
               s"but column $columnName is not a regular column in table $keyspaceName.$tableName.")
 
-        case WriteTime(columnName) =>
+        case WriteTime(columnName, _) =>
           if (!regularColumnNames.contains(columnName))
             throw new IOException(s"TTL can be obtained only for regular columns, " +
               s"but column $columnName is not a regular column in table $keyspaceName.$tableName.")
