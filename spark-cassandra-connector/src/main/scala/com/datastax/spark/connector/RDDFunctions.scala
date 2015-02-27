@@ -4,21 +4,15 @@ package com.datastax.spark.connector
 import java.net.InetAddress
 
 import com.datastax.spark.connector.cql._
+import com.datastax.spark.connector.mapper.ColumnMapper
 import com.datastax.spark.connector.rdd.partitioner.{CassandraPartitionedRDD, ReplicaPartitioner}
 import com.datastax.spark.connector.rdd.reader._
 import com.datastax.spark.connector.rdd.{CassandraJoinRDD, SpannedRDD, ValidRDDType}
-import com.datastax.spark.connector.writer._
-import com.datastax.spark.connector.writer.ReplicaMapper
-
+import com.datastax.spark.connector.writer.{ReplicaMapper, _}
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
-import com.datastax.spark.connector.cql._
-import com.datastax.spark.connector.rdd.{CassandraPartitionKeyRDD, CassandraRDD, ValidRDDType, SpannedRDD}
 
-import com.datastax.spark.connector.writer._
-import com.datastax.spark.connector.rdd.reader._
-import com.datastax.spark.connector._
 import scala.reflect.ClassTag
 
 

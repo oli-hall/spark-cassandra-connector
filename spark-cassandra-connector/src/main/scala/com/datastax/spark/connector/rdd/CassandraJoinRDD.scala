@@ -145,4 +145,6 @@ class CassandraJoinRDD[O, N] private[connector](prev: RDD[O],
   }
 
   override protected def getPartitions: Array[Partition] = prev.partitions
+
+  override def toEmptyCassandraRDD(): EmptyCassandraRDD[(O, N)] = new EmptyCassandraRDD[(O, N)](prev.sparkContext, keyspaceName, tableName, columnNames, where, readConf)
 }
