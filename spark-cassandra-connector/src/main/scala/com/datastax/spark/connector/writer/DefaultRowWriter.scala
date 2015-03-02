@@ -7,12 +7,6 @@ import com.datastax.spark.connector.{ColumnIndex, ColumnName, ColumnRef}
 import scala.collection.JavaConversions._
 import scala.collection.Seq
 
-trait CheckSetting
-object CheckLevel{
-  case object CheckAll extends CheckSetting
-  case object CheckPartitionOnly extends CheckSetting
-}
-
 /** A `RowWriter` suitable for saving objects mappable by a [[com.datastax.spark.connector.mapper.ColumnMapper ColumnMapper]].
   * Can save case class objects, java beans and tuples. */
 class DefaultRowWriter[T: ColumnMapper](table: TableDef, selectedColumns: Seq[String])

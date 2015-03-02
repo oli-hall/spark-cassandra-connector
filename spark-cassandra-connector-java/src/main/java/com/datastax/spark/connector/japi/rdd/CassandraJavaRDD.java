@@ -22,8 +22,7 @@ import static com.datastax.spark.connector.util.JavaApiHelper.toScalaSeq;
  * or {@link com.datastax.spark.connector.japi.StreamingContextJavaFunctions}.</p>
  */
 @SuppressWarnings("unchecked")
-public class CassandraJavaRDD<R> extends JavaRDD<R>
-{
+public class CassandraJavaRDD<R> extends JavaRDD<R> {
 
     public CassandraJavaRDD(CassandraRDD<R> rdd, Class<R> clazz) {
         super(rdd, getClassTag(clazz));

@@ -11,6 +11,11 @@ import com.datastax.spark.connector.util.Logging
 import scala.collection.JavaConversions._
 import scala.collection._
 
+/**
+ * A utility class for determining the Replica Set (Ip Addresses) of a particular Cassaandra Row. Used
+ * by the [[com.datastax.spark.connector.RDDFunctions.keyByCassandraReplica()]] method. Uses the Java
+ * Driver to obtain replica information.
+ */
 class ReplicaMapper[T] private(
                                 connector: CassandraConnector,
                                 tableDef: TableDef,

@@ -22,20 +22,17 @@ import static com.datastax.spark.connector.util.JavaApiHelper.toScalaSeq;
  */
 @SuppressWarnings("unchecked")
 public class CassandraJavaPairRDD<K, V> extends JavaPairRDD<K, V> {
-    public CassandraJavaPairRDD(CassandraRDD<Tuple2<K, V>> rdd, Class<K> keyClass, Class<V> valueClass)
-    {
+    public CassandraJavaPairRDD(CassandraRDD<Tuple2<K, V>> rdd, Class<K> keyClass, Class<V> valueClass) {
         super(rdd, getClassTag(keyClass), getClassTag(valueClass));
     }
 
     public CassandraJavaPairRDD(CassandraRDD<Tuple2<K, V>> rdd, ClassTag<K> keyClassTag,
-            ClassTag<V> valueClassTag)
-    {
+                                ClassTag<V> valueClassTag) {
         super(rdd, keyClassTag, valueClassTag);
     }
 
     @Override
-    public CassandraRDD<Tuple2<K, V>> rdd()
-    {
+    public CassandraRDD<Tuple2<K, V>> rdd() {
         return (CassandraRDD<Tuple2<K, V>>) super.rdd();
     }
 

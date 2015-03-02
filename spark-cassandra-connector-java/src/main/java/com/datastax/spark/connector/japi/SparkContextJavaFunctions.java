@@ -31,8 +31,7 @@ public class SparkContextJavaFunctions {
     /**
      * Converts {@code CassandraRDD} into {@code CassandraJavaRDD}.
      */
-    public <T> CassandraJavaRDD<T> toJavaRDD(CassandraRDD<T> rdd, Class<T> targetClass)
-    {
+    public <T> CassandraJavaRDD<T> toJavaRDD(CassandraRDD<T> rdd, Class<T> targetClass) {
         return new CassandraJavaRDD<>(rdd, targetClass);
     }
 
