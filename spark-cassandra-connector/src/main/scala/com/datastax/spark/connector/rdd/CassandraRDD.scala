@@ -258,7 +258,7 @@ class CassandraRDD[R] private[connector] (
     }
   }
 
-  private lazy val aliasToColumnName = columnNames.toAliasMap
+  private lazy val aliasToColumnName = columnNames.aliases
 
   private lazy val rowTransformer = implicitly[RowReaderFactory[R]]
     .rowReader(tableDef, RowReaderOptions(aliasToColumnName = aliasToColumnName))
@@ -301,7 +301,7 @@ class CassandraRDD[R] private[connector] (
       }
 
     (rowTransformer.columnNames, rowTransformer.requiredColumns) match {
-      case (Some(cs), None) => providedColumnNames.filter(columnName => cs.toSet(columnName.selectedAs))
+      case (Some(cs), None) => providedColumnNames.filter(columnName => cs.toSet(columnName.selectedFromCassandraAs))
       case (_, _) => providedColumnNames
     }
   }
@@ -317,7 +317,7 @@ class CassandraRDD[R] private[connector] (
 
     rowTransformer.columnNames match {
       case Some(names) =>
-        val missingColumns = names.toSet -- selectedColumnNames.map(_.selectedAs).toSet
+        val missingColumns = names.toSet -- selectedColumnNames.map(_.selectedFromCassandraAs).toSet
         assert(missingColumns.isEmpty, s"Missing columns needed by $targetType: ${missingColumns.mkString(", ")}")
       case None =>
     }
@@ -392,7 +392,7 @@ class CassandraRDD[R] private[connector] (
     val (cql, values) = tokenRangeToCqlQuery(range)
     logDebug(s"Fetching data for range ${range.cql} with $cql with params ${values.mkString("[", ",", "]")}")
     val stmt = createStatement(session, cql, values: _*)
-    val columnNamesArray = selectedColumnNames.map(_.selectedAs).toArray
+    val columnNamesArray = selectedColumnNames.map(_.selectedFromCassandraAs).toArray
 
     try {
       implicit val pv = protocolVersion(session)

@@ -3,16 +3,16 @@ package com.datastax.spark.connector
 import scala.language.implicitConversions
 
 sealed trait ColumnSelector {
-  def toAliasMap: Map[String, String]
+  def aliases: Map[String, String]
 }
 
 case object AllColumns extends ColumnSelector {
-  override def toAliasMap: Map[String, String] = Map.empty
+  override def aliases: Map[String, String] = Map.empty.withDefault(x => x)
 }
 
 case class SomeColumns(columns: NamedColumnRef*) extends ColumnSelector {
-  override def toAliasMap: Map[String, String] = columns.map {
-    case ref => (ref.alias.getOrElse(ref.selectedAs), ref.selectedAs)
+  override def aliases: Map[String, String] = columns.map {
+    case ref => (ref.alias.getOrElse(ref.selectedFromCassandraAs), ref.selectedFromCassandraAs)
   }.toMap
 }
 

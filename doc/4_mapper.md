@@ -71,14 +71,14 @@ case class WordCount(word: String, count: Int)
 val result = sc.cassandraTable[WordCount]]("test", "words").select("word", "num" as "count").collect()
 ```
 
-`as` method can be used for any type of projected value: normal column, TTL or write time:
+The `as` method can be used for any type of projected value: normal column, TTL or write time:
 
 ```scala
 sc.cassandraTable[SomeClass]("test", "table").select(
     "no_alias",
     "simple" as "simpleProp",
     "simple".ttl as "simplePropTTL",
-    "simple"writeTime as "simpleWriteTime")
+    "simple".writeTime as "simpleWriteTime")
 ```
 
 ### Mapping rows to pairs of objects

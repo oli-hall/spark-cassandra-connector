@@ -568,7 +568,7 @@ class CassandraRDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassand
       session.execute("TRUNCATE read_test.write_time_ttl_test")
       session.execute(s"INSERT INTO read_test.write_time_ttl_test (id, value, value2) VALUES (1, 'test', 'test2') USING TIMESTAMP $writeTime")
     }
-    implicit val mapper = new DefaultColumnMapper[WriteTimeClass](Map("writeTimeOfValue" -> "value".writeTime.selectedAs))
+    implicit val mapper = new DefaultColumnMapper[WriteTimeClass](Map("writeTimeOfValue" -> "value".writeTime.selectedFromCassandraAs))
     val results = sc.cassandraTable[WriteTimeClass]("read_test", "write_time_ttl_test")
       .select("id", "value", "value".writeTime).collect().headOption
     results.isDefined should be (true)
@@ -581,7 +581,7 @@ class CassandraRDDSpec extends FlatSpec with Matchers with SharedEmbeddedCassand
       session.execute("TRUNCATE read_test.write_time_ttl_test")
       session.execute(s"INSERT INTO read_test.write_time_ttl_test (id, value, value2) VALUES (1, 'test', 'test2') USING TTL $ttl")
     }
-    implicit val mapper = new DefaultColumnMapper[TTLClass](Map("ttlOfValue" -> "value".ttl.selectedAs))
+    implicit val mapper = new DefaultColumnMapper[TTLClass](Map("ttlOfValue" -> "value".ttl.selectedFromCassandraAs))
     val results = sc.cassandraTable[TTLClass]("read_test", "write_time_ttl_test")
       .select("id", "value", "value".ttl).collect().headOption
     results.isDefined should be (true)

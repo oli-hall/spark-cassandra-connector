@@ -4,7 +4,6 @@ import akka.japi.JAPI;
 import com.datastax.spark.connector.*;
 import com.datastax.spark.connector.cql.CassandraConnector;
 import com.datastax.spark.connector.mapper.*;
-import com.datastax.spark.connector.rdd.*;
 import com.datastax.spark.connector.rdd.reader.ClassBasedRowReaderFactory;
 import com.datastax.spark.connector.rdd.reader.RowReaderFactory;
 import com.datastax.spark.connector.rdd.reader.ValueRowReaderFactory;
@@ -469,7 +468,7 @@ public class CassandraJavaUtil {
         return columnsSelection;
     }
 
-    public static ColumnName plain(String columnName) {
+    public static ColumnName column(String columnName) {
         return new ColumnName(columnName, Option.<String>empty());
     }
 

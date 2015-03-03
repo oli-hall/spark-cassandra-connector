@@ -147,17 +147,17 @@ we want to map the rows of this table to objects of `Person` class.
 
 ```java
 CassandraJavaRDD<Person> rdd = javaFunctions(sc).cassandraTable("ks", "people2", mapRowTo(Person.class)).select(
-        plain("id"),
-        plain("last_name").as("name"),
-        plain("date_of_birth").as("birthDate"));
+        column("id"),
+        column("last_name").as("name"),
+        column("date_of_birth").as("birthDate"));
 ```
 
 `as` method can be used for any type of projected value: normal column, TTL or write time:
 
 ```java
 javaFunctions(sc).cassandraTable("test", "table", mapRowTo(SomeClass.class)).select(
-        plain("no_alias"),
-        plain("simple").as("simpleProp"),
+        column("no_alias"),
+        column("simple").as("simpleProp"),
         ttl("simple").as("simplePropTTL"),
         writeTime("simple").as("simpleWriteTime"))
 ```

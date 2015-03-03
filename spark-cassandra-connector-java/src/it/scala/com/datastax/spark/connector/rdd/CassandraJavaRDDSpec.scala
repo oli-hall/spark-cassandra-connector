@@ -73,7 +73,7 @@ with ShouldMatchers with SharedEmbeddedCassandra with SparkTemplate {
   it should "allow to read data as Java beans with custom mapping defined by aliases" in {
     val beans = javaFunctions(sc)
       .cassandraTable("java_api_test", "test_table", mapRowTo(classOf[SampleWeirdJavaBean]))
-      .select(plain("key").as("devil"), plain("value").as("cat"))
+      .select(column("key").as("devil"), column("value").as("cat"))
       .collect()
     assert(beans.size == 3)
     assert(beans.exists(bean ⇒ bean.getCat == "one" && bean.getDevil == 1))
