@@ -91,6 +91,8 @@ object Dependencies {
     val lzf                 = "com.ning"                % "compress-lzf"           % Lzf            % "provided"
     val reflect             = "org.scala-lang"          % "scala-reflect"          % Scala
     val slf4jApi            = "org.slf4j"               % "slf4j-api"              % Slf4j          % "provided"                 // MIT
+    val snappyJava          = "org.xerial.snappy"       % "snappy-java"            % "1.0.4.1"
+    val jettyServlet        = "org.eclipse.jetty"       % "jetty-servlet"          % "8.1.14.v20131031"
     /* To allow spark artifact inclusion in the demo module at runtime, we set 'provided'
        scope on the connector below, specifically, versus globally here. */
     val sparkCore           = "org.apache.spark"        %% "spark-core"            % Spark exclude("com.google.guava", "guava") // ApacheV2
@@ -146,7 +148,7 @@ object Dependencies {
   val spark = Seq(sparkCore, sparkStreaming, sparkSql, sparkCatalyst, sparkHive)
 
   val connector = testKit ++ metrics ++ logging ++ akka ++ cassandra ++ spark.map(_ % "provided") ++ Seq(
-    commonsLang3, config, guava, jodaC, jodaT, lzf, reflect)
+    commonsLang3, config, guava, jodaC, jodaT, lzf, reflect, snappyJava, jettyServlet)
 
   val embedded = logging ++ spark ++ cassandra ++ Seq(
     Embedded.cassandraServer, Embedded.jopt, Embedded.kafka, Embedded.sparkRepl)

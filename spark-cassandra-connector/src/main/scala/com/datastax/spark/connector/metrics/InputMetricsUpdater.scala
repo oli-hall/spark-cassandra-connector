@@ -20,11 +20,11 @@ private class DetailedInputMetricsUpdater(metrics: InputMetrics, groupSize: Int)
   private val taskTimer = CassandraConnectorSource.readTaskTimer.time()
 
   private var cnt = 0
-  private var dataLength = metrics.bytesRead
+  private var dataLength = 0l//metrics.bytesRead
 
   def updateMetrics(row: Row): Row = {
     for (i <- 0 until row.getColumnDefinitions.size() if !row.isNull(i))
-      metrics.bytesRead += row.getBytesUnsafe(i).remaining()
+      /*metrics.incBytesRead(row.getBytesUnsafe(i).remaining())*/
 
     cnt += 1
     if (cnt == groupSize)
@@ -35,8 +35,8 @@ private class DetailedInputMetricsUpdater(metrics: InputMetrics, groupSize: Int)
   @inline
   private def update(): Unit = {
     CassandraConnectorSource.readRowMeter.mark(cnt)
-    CassandraConnectorSource.readByteMeter.mark(metrics.bytesRead - dataLength)
-    dataLength = metrics.bytesRead
+    CassandraConnectorSource.readByteMeter.mark(0l/*metrics.bytesRead*/ - dataLength)
+    dataLength = 0l/*metrics.bytesRead*/
     cnt = 0
   }
 
@@ -69,10 +69,11 @@ object InputMetricsUpdater {
 
     if (detailedMetricsEnabled) {
       val tm = taskContext.taskMetrics()
-      if (tm.inputMetrics.isEmpty || tm.inputMetrics.get.readMethod != DataReadMethod.Hadoop)
-        tm.inputMetrics = Some(new InputMetrics(DataReadMethod.Hadoop))
+      
+      // if (tm.inputMetrics.isEmpty || tm.inputMetrics.get.readMethod != DataReadMethod.Hadoop)
+      //   tm.setInputMetrics(Some(new InputMetrics(DataReadMethod.Hadoop)))
 
-      new DetailedInputMetricsUpdater(tm.inputMetrics.get, groupSize)
+      new DetailedInputMetricsUpdater(tm.inputMetrics.orNull, groupSize)
     } else {
       new DummyInputMetricsUpdater
     }

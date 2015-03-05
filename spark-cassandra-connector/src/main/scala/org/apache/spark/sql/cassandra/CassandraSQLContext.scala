@@ -3,7 +3,7 @@ package org.apache.spark.sql.cassandra
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.catalyst.analysis.OverrideCatalog
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.{Strategy, SQLContext, SchemaRDD}
+import org.apache.spark.sql.{DataFrame, SQLContext, Strategy}
 
 /** Allows to execute SQL queries against Cassandra and access results as
   * [[org.apache.spark.sql.SchemaRDD]] collections.
@@ -31,13 +31,12 @@ import org.apache.spark.sql.{Strategy, SQLContext, SchemaRDD}
   * }}} */
 class CassandraSQLContext(sc: SparkContext) extends SQLContext(sc) {
 
-  override protected[sql] def executePlan(plan: LogicalPlan): this.QueryExecution =
-    new this.QueryExecution { val logical = plan }
+  override protected[sql] def executePlan(plan: LogicalPlan): this.QueryExecution = super.executePlan(plan)
 
   @transient
-  val conf = sc.getConf
+  lazy val sparkConf = sc.getConf
 
-  private var keyspaceName = conf.getOption("spark.cassandra.keyspace")
+  private var keyspaceName = sparkConf.getOption("spark.cassandra.keyspace")
 
   /** Sets default Cassandra keyspace to be used when accessing tables with unqualified names. */
   def setKeyspace(ks: String) {
@@ -50,10 +49,10 @@ class CassandraSQLContext(sc: SparkContext) extends SQLContext(sc) {
     throw new IllegalStateException("Default keyspace not set. Please call CassandraSqlContext#setKeyspace."))
 
   /** Executes SQL query against Cassandra and returns SchemaRDD representing the result. */
-  def cassandraSql(cassandraQuery: String): SchemaRDD = new SchemaRDD(this, super.parseSql(cassandraQuery))
+  def cassandraSql(cassandraQuery: String): DataFrame = DataFrame(this, super.parseSql(cassandraQuery))
 
   /** Delegates to [[cassandraSql]] */
-  override def sql(cassandraQuery: String): SchemaRDD = cassandraSql(cassandraQuery)
+  override def sql(cassandraQuery: String): DataFrame = cassandraSql(cassandraQuery)
 
   /** A catalyst metadata catalog that points to Cassandra. */
   @transient
@@ -64,7 +63,7 @@ class CassandraSQLContext(sc: SparkContext) extends SQLContext(sc) {
   override protected[sql] val planner = new SparkPlanner with CassandraStrategies {
     val cassandraContext = CassandraSQLContext.this
     override val strategies: Seq[Strategy] = Seq(
-      CommandStrategy(CassandraSQLContext.this),
+      // CommandStrategy(CassandraSQLContext.this),
       TakeOrdered,
       InMemoryScans,
       CassandraTableScans,

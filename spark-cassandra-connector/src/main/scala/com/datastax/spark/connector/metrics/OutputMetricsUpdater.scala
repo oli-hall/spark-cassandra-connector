@@ -24,9 +24,10 @@ private class DetailedOutputMetricsUpdater(outputMetrics: OutputMetrics) extends
     CassandraConnectorSource.writeRowMeter.mark(stmt.rowsCount)
     CassandraConnectorSource.writeByteMeter.mark(stmt.bytesCount)
     CassandraConnectorSource.writeSuccessCounter.inc()
-    mutex.acquire()
-    outputMetrics.bytesWritten += stmt.bytesCount
-    mutex.release()
+    // Unable to increment outputMetrics.bytesWritten as this property is not exposed for write beyond the spark package
+    // mutex.acquire()
+    // outputMetrics += stmt.bytesCount
+    // mutex.release()
   }
 
   def batchFailed(stmt: RichStatement, submissionTimestamp: Long, executionTimestamp: Long): Unit = {

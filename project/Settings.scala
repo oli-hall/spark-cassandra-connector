@@ -41,7 +41,8 @@ object Settings extends Build {
     version in ThisBuild := "1.2.0-SNAPSHOT",
     scalaVersion := Versions.Scala,
     homepage := Some(url("https://github.com/datastax/spark-cassandra-connector")),
-    licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0")))
+    licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
+    resolvers += Resolver.mavenLocal
   )
 
   val parentSettings = buildSettings ++ Seq(

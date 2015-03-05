@@ -7,7 +7,7 @@ import com.datastax.driver.core.{Row, ProtocolVersion}
 import com.datastax.spark.connector.AbstractGettableData
 import com.datastax.spark.connector.rdd.reader.{ThisRowReaderAsFactory, RowReader}
 import com.datastax.spark.connector.types.TypeConverter
-import org.apache.spark.sql.catalyst.expressions.{Row => SparkRow}
+import org.apache.spark.sql.{Row => SparkRow}
 
 final class CassandraSQLRow(columnNames: IndexedSeq[String], val fieldValues: IndexedSeq[AnyRef])
   extends AbstractGettableData with SparkRow with Serializable {
@@ -33,7 +33,7 @@ final class CassandraSQLRow(columnNames: IndexedSeq[String], val fieldValues: In
   override def getShort(i: Int) = get[Short](i)
   override def getInt(i: Int) = get[Int](i)
   override def getString(i: Int) = get[String](i)
-  override def iterator = fieldValues.iterator
+  override def toSeq = fieldValues
 }
 
 
